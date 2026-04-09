@@ -14,18 +14,14 @@ namespace Yuki_PC
             InitializeComponent();
             InitializeClient();
 
-            // Hide console window if present
             NativeMethods.HideConsoleWindow();
 
-            // Device ID based on machine name
             string deviceId = $"pc-{Environment.MachineName.ToLowerInvariant()}";
             textBoxDeviceId.Text = deviceId;
             labelDeviceId.Text = deviceId;
 
-            // Set up tray
             SetupTrayIcon();
 
-            // Subscribe to logger events
             Logger.OnLog = (msg, level) =>
             {
                 if (InvokeRequired)
@@ -58,13 +54,9 @@ namespace Yuki_PC
         private void Client_OnStatusChanged(object sender, YukiClient.ConnectionStatus status)
         {
             if (InvokeRequired)
-            {
                 Invoke(new Action(() => UpdateUIForStatus(status)));
-            }
             else
-            {
                 UpdateUIForStatus(status);
-            }
         }
 
         private void UpdateUIForStatus(YukiClient.ConnectionStatus status)
@@ -154,15 +146,14 @@ namespace Yuki_PC
         {
             if (_client.Status == YukiClient.ConnectionStatus.Connected)
             {
-                // Disconnect
                 _isUserDisconnect = true;
                 await _client.DisconnectAsync();
             }
             else if (_client.Status == YukiClient.ConnectionStatus.Disconnected)
             {
-                // Connect
                 string serverAddress = textBoxAddress.Text.Trim();
                 string deviceId = textBoxDeviceId.Text.Trim();
+                string authToken = textBoxAuthToken.Text.Trim();
 
                 if (string.IsNullOrEmpty(deviceId))
                 {
@@ -171,8 +162,8 @@ namespace Yuki_PC
                     return;
                 }
 
-                // Update device ID in client
                 _client.DeviceId = deviceId;
+                _client.AuthToken = authToken;
                 labelDeviceId.Text = deviceId;
 
                 _isUserDisconnect = false;
@@ -191,7 +182,7 @@ namespace Yuki_PC
             string httpUrl = textBoxAddress.Text
                 .Replace("ws://", "http://")
                 .Replace("wss://", "https://")
-                .Replace(":8000", ":5000"); // WebUI default port
+                .Replace(":8000", ":5000");
 
             try
             {
@@ -226,14 +217,12 @@ namespace Yuki_PC
             }
         }
 
-        private void textBoxAddress_TextChanged(object sender, EventArgs e)
-        {
-            // Just store the value
-        }
+        private void textBoxAddress_TextChanged(object sender, EventArgs e) { }
+        private void textBoxDeviceId_TextChanged(object sender, EventArgs e) { }
 
-        private void textBoxDeviceId_TextChanged(object sender, EventArgs e)
+        private void checkBoxShowToken_CheckedChanged(object sender, EventArgs e)
         {
-            // Optionally validate
+            textBoxAuthToken.UseSystemPasswordChar = !checkBoxShowToken.Checked;
         }
 
         private void ShowWindow()
@@ -255,9 +244,7 @@ namespace Yuki_PC
         {
             base.OnResize(e);
             if (WindowState == FormWindowState.Minimized)
-            {
                 Hide();
-            }
         }
 
         protected override void OnFormClosing(FormClosingEventArgs e)
@@ -275,15 +262,12 @@ namespace Yuki_PC
         }
     }
 
-    // Helper to hide console window
     internal static class NativeMethods
     {
         [System.Runtime.InteropServices.DllImport("kernel32.dll")]
         private static extern IntPtr GetConsoleWindow();
-
         [System.Runtime.InteropServices.DllImport("user32.dll")]
         private static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
-
         private const int SW_HIDE = 0;
 
         public static void HideConsoleWindow()

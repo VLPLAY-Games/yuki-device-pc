@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
@@ -30,19 +31,24 @@ namespace Yuki_PC
             WriteIndented = false
         };
 
-        public static YukiMessage CreateHelloMessage(string deviceId, string deviceType, string[] capabilities = null)
+        public static YukiMessage CreateHelloMessage(string deviceId, string deviceType,
+            string[] capabilities = null, string authToken = null)
         {
-            var payload = new
+            var payload = new Dictionary<string, object>
             {
-                device_id = deviceId,
-                device_type = deviceType,
-                capabilities = capabilities ?? Array.Empty<string>()
+                ["device_id"] = deviceId,
+                ["device_type"] = deviceType,
+                ["capabilities"] = capabilities ?? Array.Empty<string>()
             };
+            if (!string.IsNullOrEmpty(authToken))
+                payload["auth_token"] = authToken;
+
+            string json = JsonSerializer.Serialize(payload);
             return new YukiMessage
             {
                 Type = "hello",
                 Id = Guid.NewGuid().ToString(),
-                Payload = JsonDocument.Parse(JsonSerializer.Serialize(payload)).RootElement
+                Payload = JsonDocument.Parse(json).RootElement
             };
         }
 

@@ -17,8 +17,15 @@ namespace Yuki_PC
         private string _serverAddress;
         private string _sessionId;
         private int _heartbeatInterval = 30;
+        private readonly string[] _capabilities = new[]
+        {
+            "open_browser", "open_url", "shutdown", "restart", "sleep",
+            "volume_up", "volume_down", "volume_mute",
+            "open_folder", "open_explorer", "open_notepad", "open_calculator"
+        };
 
         public string DeviceId { get; set; }
+        public string AuthToken { get; set; }
 
         public enum ConnectionStatus
         {
@@ -60,11 +67,7 @@ namespace Yuki_PC
                 {
                     Log(Logger.LogLevel.SUCCESS, "WebSocket connected, sending hello...");
                     UpdateStatus(ConnectionStatus.Handshaking);
-
-                    // Start receive loop
                     _receiveTask = Task.Run(() => ReceiveLoopAsync(token), token);
-
-                    // Send hello
                     await SendHelloAsync(token);
                 }
             }
@@ -81,12 +84,8 @@ namespace Yuki_PC
             try
             {
                 _cancellationTokenSource?.Cancel();
-
                 if (_webSocket?.State == WebSocketState.Open)
-                {
                     await _webSocket.CloseAsync(WebSocketCloseStatus.NormalClosure, "Client disconnect", CancellationToken.None);
-                }
-
                 _webSocket?.Dispose();
                 _webSocket = new ClientWebSocket();
             }
@@ -103,20 +102,10 @@ namespace Yuki_PC
 
         private async Task SendHelloAsync(CancellationToken token)
         {
-            var capabilities = new[]
-            {
-                "open_browser", "open_url",
-                "shutdown", "restart", "sleep",
-                "volume_up", "volume_down", "volume_mute",
-                "open_folder", "open_explorer",
-                "open_notepad", "open_calculator"
-            };
-
-            var hello = YukiProtocol.CreateHelloMessage(DeviceId, "yuki-device-pc", capabilities);
+            var hello = YukiProtocol.CreateHelloMessage(DeviceId, "yuki-device-pc", _capabilities, AuthToken);
             await SendMessageAsync(hello, token);
-            Logger.Info($"Sent hello for device '{DeviceId}' with {capabilities.Length} capabilities");
+            Log(Logger.LogLevel.INFO, $"Sent hello for device '{DeviceId}'");
         }
-
 
         private async Task SendStatusAsync(string status, CancellationToken token)
         {
@@ -146,7 +135,6 @@ namespace Yuki_PC
                         Log(Logger.LogLevel.INFO, "Server closed connection");
                         break;
                     }
-
                     var json = Encoding.UTF8.GetString(buffer, 0, result.Count);
                     await ProcessMessageAsync(json, token);
                 }
@@ -182,10 +170,8 @@ namespace Yuki_PC
                             _sessionId = sid.GetString();
                         if (msg.Payload.TryGetProperty("heartbeat_interval", out var hi) && hi.TryGetInt32(out var interval))
                             _heartbeatInterval = interval;
-
                         Log(Logger.LogLevel.SUCCESS, $"Welcome received. Heartbeat: {_heartbeatInterval}s");
                         UpdateStatus(ConnectionStatus.Connected);
-
                         await SendStatusAsync("online", token);
                         StartHeartbeat(token);
                         break;
@@ -240,9 +226,7 @@ namespace Yuki_PC
                 payload = paramsProp;
 
             Log(Logger.LogLevel.INFO, $"Command received: {command}");
-
             var (success, result, error) = await CommandHandler.ExecuteAsync(command, payload);
-
             var resMsg = YukiProtocol.CreateCommandResultMessage(msg.Id, success, result, error);
             await SendMessageAsync(resMsg, token);
         }
@@ -258,7 +242,6 @@ namespace Yuki_PC
 
         private void Log(Logger.LogLevel level, string message)
         {
-            // Forward to global logger (which also triggers UI)
             switch (level)
             {
                 case Logger.LogLevel.INFO: Logger.Info(message); break;

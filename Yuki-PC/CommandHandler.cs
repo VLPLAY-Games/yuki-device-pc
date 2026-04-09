@@ -8,7 +8,6 @@ namespace Yuki_PC
 {
     public static class CommandHandler
     {
-        // WinAPI for volume control
         private const int APPCOMMAND_VOLUME_MUTE = 0x80000;
         private const int APPCOMMAND_VOLUME_UP = 0xA0000;
         private const int APPCOMMAND_VOLUME_DOWN = 0x90000;
@@ -25,7 +24,6 @@ namespace Yuki_PC
                 object result = null;
                 switch (command?.ToLowerInvariant())
                 {
-                    // --- Browser & URLs ---
                     case "open_browser":
                     case "open_url":
                         var url = "https://www.google.com";
@@ -35,7 +33,6 @@ namespace Yuki_PC
                         result = new { opened = true, url };
                         break;
 
-                    // --- System power ---
                     case "shutdown":
                         Process.Start("shutdown", "/s /t 5");
                         result = new { shutdown_initiated = true, delay_seconds = 5 };
@@ -51,29 +48,24 @@ namespace Yuki_PC
                         result = new { sleep_initiated = true };
                         break;
 
-                    // --- Volume control ---
                     case "volume_up":
                         SendMessageW(Process.GetCurrentProcess().MainWindowHandle, WM_APPCOMMAND,
-                            Process.GetCurrentProcess().MainWindowHandle,
-                            (IntPtr)APPCOMMAND_VOLUME_UP);
+                            Process.GetCurrentProcess().MainWindowHandle, (IntPtr)APPCOMMAND_VOLUME_UP);
                         result = new { volume = "up" };
                         break;
 
                     case "volume_down":
                         SendMessageW(Process.GetCurrentProcess().MainWindowHandle, WM_APPCOMMAND,
-                            Process.GetCurrentProcess().MainWindowHandle,
-                            (IntPtr)APPCOMMAND_VOLUME_DOWN);
+                            Process.GetCurrentProcess().MainWindowHandle, (IntPtr)APPCOMMAND_VOLUME_DOWN);
                         result = new { volume = "down" };
                         break;
 
                     case "volume_mute":
                         SendMessageW(Process.GetCurrentProcess().MainWindowHandle, WM_APPCOMMAND,
-                            Process.GetCurrentProcess().MainWindowHandle,
-                            (IntPtr)APPCOMMAND_VOLUME_MUTE);
+                            Process.GetCurrentProcess().MainWindowHandle, (IntPtr)APPCOMMAND_VOLUME_MUTE);
                         result = new { muted = true };
                         break;
 
-                    // --- File Explorer & folders ---
                     case "open_folder":
                         if (payload.TryGetProperty("path", out var folderProp))
                         {
@@ -81,14 +73,10 @@ namespace Yuki_PC
                             Process.Start("explorer.exe", folder);
                             result = new { opened = folder };
                         }
-                        else
-                        {
-                            return (false, null, "Missing 'path' parameter");
-                        }
+                        else return (false, null, "Missing 'path' parameter");
                         break;
 
                     case "open_explorer":
-                        // Open "This PC" if no path given
                         var explorerPath = "";
                         if (payload.TryGetProperty("path", out var expProp))
                             explorerPath = expProp.GetString();
@@ -96,7 +84,6 @@ namespace Yuki_PC
                         result = new { opened = string.IsNullOrEmpty(explorerPath) ? "This PC" : explorerPath };
                         break;
 
-                    // --- Applications ---
                     case "open_notepad":
                         Process.Start("notepad.exe");
                         result = new { opened = "notepad" };
@@ -110,7 +97,6 @@ namespace Yuki_PC
                     default:
                         return (false, new { executed = false, reason = "unknown_command" }, null);
                 }
-
                 return (true, result, null);
             }
             catch (Exception ex)
