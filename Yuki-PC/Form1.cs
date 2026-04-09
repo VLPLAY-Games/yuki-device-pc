@@ -192,6 +192,13 @@ namespace Yuki_PC
                     labelStatusValue.Text = "Handshaking...";
                     labelStatusValue.ForeColor = Color.Yellow;
                     break;
+                case YukiClient.ConnectionStatus.Reconnecting:
+                    labelStatusValue.Text = "Reconnecting...";
+                    labelStatusValue.ForeColor = Color.Orange;
+                    buttonConnect.Text = "Disconnect";
+                    buttonConnect.Enabled = true;
+                    buttonOpenPanel.Enabled = false;
+                    break;
             }
         }
 
@@ -251,10 +258,11 @@ namespace Yuki_PC
         {
             SaveSettings();
 
-            if (_client.Status == YukiClient.ConnectionStatus.Connected)
+            if (_client.Status == YukiClient.ConnectionStatus.Connected ||
+                _client.Status == YukiClient.ConnectionStatus.Reconnecting)
             {
                 _isUserDisconnect = true;
-                await _client.DisconnectAsync();
+                await _client.DisconnectAsync(userInitiated: true);
             }
             else if (_client.Status == YukiClient.ConnectionStatus.Disconnected)
             {

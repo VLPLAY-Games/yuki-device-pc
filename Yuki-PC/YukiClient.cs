@@ -20,6 +20,14 @@ namespace Yuki_PC
         private int _heartbeatInterval = 30;
         private string[] _enabledCapabilities = Array.Empty<string>();
 
+        // Reconnection fields
+        private CancellationTokenSource _reconnectCts;
+        private int _reconnectAttempt;
+        private bool _userInitiatedDisconnect;
+        private bool _wasConnectedOnce;
+        private bool _disposed;
+        private readonly int _reconnectBackoffBase = 3; // seconds
+
         public string DeviceId { get; set; }
         public string AuthToken { get; set; }
 
@@ -28,7 +36,8 @@ namespace Yuki_PC
             Disconnected,
             Connecting,
             Handshaking,
-            Connected
+            Connected,
+            Reconnecting   // новый статус
         }
 
         public ConnectionStatus Status { get; private set; } = ConnectionStatus.Disconnected;
@@ -49,10 +58,17 @@ namespace Yuki_PC
 
         public async Task ConnectAsync(string serverAddress)
         {
-            if (Status != ConnectionStatus.Disconnected)
-                await DisconnectAsync();
+            if (Status != ConnectionStatus.Disconnected && Status != ConnectionStatus.Reconnecting)
+                await DisconnectAsync(userInitiated: true);
+
+            // Отменяем любые попытки переподключения
+            CancelReconnection();
 
             _serverAddress = serverAddress;
+            _userInitiatedDisconnect = false;
+            _wasConnectedOnce = false;
+            _reconnectAttempt = 0;
+
             UpdateStatus(ConnectionStatus.Connecting);
             Log(Logger.LogLevel.INFO, $"Connecting to {serverAddress}...");
 
@@ -76,12 +92,16 @@ namespace Yuki_PC
             {
                 Log(Logger.LogLevel.ERROR, $"Connection failed: {ex.Message}");
                 UpdateStatus(ConnectionStatus.Disconnected);
-                await DisconnectAsync();
+                await DisconnectAsync(userInitiated: false);
+                // Не запускаем авто-переподключение, потому что это была ручная попытка подключения
             }
         }
 
-        public async Task DisconnectAsync()
+        public async Task DisconnectAsync(bool userInitiated = true)
         {
+            _userInitiatedDisconnect = userInitiated;
+            CancelReconnection();
+
             try
             {
                 _cancellationTokenSource?.Cancel();
@@ -151,8 +171,106 @@ namespace Yuki_PC
             }
             finally
             {
-                await DisconnectAsync();
+                // Соединение потеряно – запускаем переподключение, если это не было инициировано пользователем
+                await HandleConnectionLost();
             }
+        }
+
+        private async Task HandleConnectionLost()
+        {
+            if (_userInitiatedDisconnect || _disposed)
+                return;
+
+            // Если мы никогда не были в Connected, не переподключаемся автоматически
+            if (!_wasConnectedOnce)
+            {
+                UpdateStatus(ConnectionStatus.Disconnected);
+                return;
+            }
+
+            Log(Logger.LogLevel.WARN, "Connection lost, starting reconnection process...");
+            UpdateStatus(ConnectionStatus.Reconnecting);
+            StartReconnection();
+        }
+
+        private void StartReconnection()
+        {
+            CancelReconnection(); // отменяем предыдущий цикл, если есть
+            _reconnectCts = new CancellationTokenSource();
+            var token = _reconnectCts.Token;
+
+            Task.Run(async () =>
+            {
+                while (!token.IsCancellationRequested && !_userInitiatedDisconnect && !_disposed)
+                {
+                    int delay = (int)Math.Pow(2, _reconnectAttempt) * _reconnectBackoffBase;
+                    // Ограничим максимум 60 секундами, чтобы не ждать слишком долго
+                    if (delay > 60) delay = 60;
+
+                    Log(Logger.LogLevel.INFO, $"Reconnection attempt {_reconnectAttempt + 1} in {delay} seconds...");
+                    try
+                    {
+                        await Task.Delay(delay * 1000, token);
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        break;
+                    }
+
+                    if (token.IsCancellationRequested || _userInitiatedDisconnect || _disposed)
+                        break;
+
+                    Log(Logger.LogLevel.INFO, $"Attempting to reconnect to {_serverAddress}...");
+                    bool success = await TryReconnectAsync();
+                    if (success)
+                    {
+                        _reconnectAttempt = 0;
+                        Log(Logger.LogLevel.SUCCESS, "Reconnection successful");
+                        break;
+                    }
+                    else
+                    {
+                        _reconnectAttempt++;
+                        Log(Logger.LogLevel.WARN, $"Reconnection attempt {_reconnectAttempt} failed");
+                    }
+                }
+            }, token);
+        }
+
+        private async Task<bool> TryReconnectAsync()
+        {
+            try
+            {
+                // Сбрасываем старое соединение
+                _cancellationTokenSource?.Cancel();
+                _webSocket?.Dispose();
+                _webSocket = new ClientWebSocket();
+                _cancellationTokenSource = new CancellationTokenSource();
+                var token = _cancellationTokenSource.Token;
+
+                var uri = new Uri(_serverAddress + "/device");
+                await _webSocket.ConnectAsync(uri, token);
+                if (_webSocket.State != WebSocketState.Open)
+                    return false;
+
+                Log(Logger.LogLevel.SUCCESS, "WebSocket reconnected, sending hello...");
+                UpdateStatus(ConnectionStatus.Handshaking);
+                _receiveTask = Task.Run(() => ReceiveLoopAsync(token), token);
+                await SendHelloAsync(token);
+                return true;
+            }
+            catch (Exception ex)
+            {
+                Log(Logger.LogLevel.ERROR, $"Reconnection error: {ex.Message}");
+                return false;
+            }
+        }
+
+        private void CancelReconnection()
+        {
+            _reconnectCts?.Cancel();
+            _reconnectCts?.Dispose();
+            _reconnectCts = null;
         }
 
         private async Task ProcessMessageAsync(string json, CancellationToken token)
@@ -172,6 +290,7 @@ namespace Yuki_PC
                         if (msg.Payload.TryGetProperty("heartbeat_interval", out var hi) && hi.TryGetInt32(out var interval))
                             _heartbeatInterval = interval;
                         Log(Logger.LogLevel.SUCCESS, $"Welcome received. Heartbeat: {_heartbeatInterval}s");
+                        _wasConnectedOnce = true;
                         UpdateStatus(ConnectionStatus.Connected);
                         await SendStatusAsync("online", token);
                         StartHeartbeat(token);
@@ -264,6 +383,8 @@ namespace Yuki_PC
 
         public void Dispose()
         {
+            _disposed = true;
+            CancelReconnection();
             _cancellationTokenSource?.Cancel();
             _webSocket?.Dispose();
             _heartbeatTask?.Dispose();
