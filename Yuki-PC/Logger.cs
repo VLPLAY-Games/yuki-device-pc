@@ -1,6 +1,5 @@
 ﻿using System;
 using System.IO;
-using System.Windows.Forms;
 
 namespace Yuki_PC
 {
@@ -9,34 +8,56 @@ namespace Yuki_PC
         private static string logFolder;
         private static string logFile;
 
-        public static Action<string> OnLog;
+        public static Action<string, LogLevel> OnLog;
+
+        public enum LogLevel
+        {
+            INFO,
+            WARN,
+            ERROR,
+            DEBUG,
+            SUCCESS
+        }
 
         static Logger()
         {
-            logFolder = Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-                "Yuki",
-                "logs"
-            );
+            string projectDir = AppDomain.CurrentDomain.BaseDirectory;
+            logFolder = Path.Combine(projectDir, "logs");
 
             Directory.CreateDirectory(logFolder);
 
-            logFile = Path.Combine(logFolder, "latest.log");
+            string fileName = DateTime.Now.ToString("yyyy-MM-dd_HH-mm-ss") + ".log";
+
+            logFile = Path.Combine(logFolder, fileName);
+
+            Info("=== Logger initialized ===");
+            Info($"Log file: {logFile}");
+            Info($"Application started at {DateTime.Now:yyyy-MM-dd HH:mm:ss}");
         }
 
         public static void Info(string message)
         {
-            Write("INFO", message);
+            Write("INFO", message, LogLevel.INFO);
         }
 
         public static void Warning(string message)
         {
-            Write("WARN", message);
+            Write("WARN", message, LogLevel.WARN);
         }
 
         public static void Error(string message)
         {
-            Write("ERROR", message);
+            Write("ERROR", message, LogLevel.ERROR);
+        }
+
+        public static void Debug(string message)
+        {
+            Write("DEBUG", message, LogLevel.DEBUG);
+        }
+
+        public static void Success(string message)
+        {
+            Write("SUCCESS", message, LogLevel.SUCCESS);
         }
 
         public static string GetLogFolder()
@@ -44,7 +65,12 @@ namespace Yuki_PC
             return logFolder;
         }
 
-        private static void Write(string level, string message)
+        public static string GetLogFile()
+        {
+            return logFile;
+        }
+
+        private static void Write(string level, string message, LogLevel logLevel)
         {
             string line = $"[{DateTime.Now:HH:mm:ss}] [{level}] {message}";
 
@@ -56,7 +82,7 @@ namespace Yuki_PC
             {
             }
 
-            OnLog?.Invoke(line);
+            OnLog?.Invoke(line, logLevel);
         }
     }
 }

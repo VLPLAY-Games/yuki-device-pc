@@ -30,7 +30,7 @@ namespace Yuki_PC
             this.buttonOpenLogs = new System.Windows.Forms.Button();
             this.labelDeviceText = new System.Windows.Forms.Label();
             this.labelDeviceId = new System.Windows.Forms.Label();
-            this.textBoxLogs = new System.Windows.Forms.TextBox();
+            this.textBoxLogs = new System.Windows.Forms.RichTextBox();
             this.trayMenu = new System.Windows.Forms.ContextMenuStrip(this.components);
             this.trayIcon = new System.Windows.Forms.NotifyIcon(this.components);
             this.groupBoxServer.SuspendLayout();
@@ -134,14 +134,15 @@ namespace Yuki_PC
             // 
             // textBoxLogs
             // 
+            this.textBoxLogs.BackColor = System.Drawing.Color.Black;
             this.textBoxLogs.Font = new System.Drawing.Font("Consolas", 9F);
+            this.textBoxLogs.ForeColor = System.Drawing.Color.White;
             this.textBoxLogs.Location = new System.Drawing.Point(20, 210);
-            this.textBoxLogs.Multiline = true;
             this.textBoxLogs.Name = "textBoxLogs";
             this.textBoxLogs.ReadOnly = true;
-            this.textBoxLogs.ScrollBars = System.Windows.Forms.ScrollBars.Vertical;
             this.textBoxLogs.Size = new System.Drawing.Size(520, 150);
             this.textBoxLogs.TabIndex = 1;
+            this.textBoxLogs.Text = "";
             // 
             // trayMenu
             // 
@@ -161,11 +162,10 @@ namespace Yuki_PC
             this.FormBorderStyle = System.Windows.Forms.FormBorderStyle.FixedSingle;
             this.MaximizeBox = false;
             this.Name = "Form1";
-            this.Text = "Yuki Device PC";
+            this.Text = "Yuki PC";
             this.groupBoxServer.ResumeLayout(false);
             this.groupBoxServer.PerformLayout();
             this.ResumeLayout(false);
-            this.PerformLayout();
 
         }
 
@@ -181,7 +181,7 @@ namespace Yuki_PC
         private System.Windows.Forms.Button buttonOpenLogs;
         private System.Windows.Forms.Label labelDeviceText;
         private System.Windows.Forms.Label labelDeviceId;
-        private System.Windows.Forms.TextBox textBoxLogs;
+        private System.Windows.Forms.RichTextBox textBoxLogs;
         private ContextMenuStrip trayMenu;
         private NotifyIcon trayIcon;
     }
