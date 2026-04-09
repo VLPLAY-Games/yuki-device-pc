@@ -14,6 +14,9 @@ namespace Yuki_PC
         private const int WM_APPCOMMAND = 0x319;
 
         [DllImport("user32.dll")]
+        private static extern bool LockWorkStation();
+
+        [DllImport("user32.dll")]
         private static extern IntPtr SendMessageW(IntPtr hWnd, int Msg, IntPtr wParam, IntPtr lParam);
 
         public static async Task<(bool success, object result, string error)> ExecuteAsync(
@@ -46,6 +49,23 @@ namespace Yuki_PC
                     case "sleep":
                         Process.Start("rundll32.exe", "powrprof.dll,SetSuspendState 0,1,0");
                         result = new { sleep_initiated = true };
+                        break;
+
+                    case "lock":
+                        bool locked = LockWorkStation();
+                        result = new { locked = locked };
+                        if (!locked) return (false, null, "Failed to lock workstation");
+                        break;
+
+                    case "set_volume":
+                        if (!payload.TryGetProperty("level", out var levelProp))
+                            return (false, null, "Missing 'level' parameter (0-100)");
+                        int target = levelProp.GetInt32();
+                        if (target < 0) target = 0;
+                        if (target > 100) target = 100;
+                        bool success = SetVolumeExact(target);
+                        if (!success) return (false, null, "Failed to set volume");
+                        result = new { volume = target, unit = "percent" };
                         break;
 
                     case "volume_up":
@@ -102,6 +122,32 @@ namespace Yuki_PC
             catch (Exception ex)
             {
                 return (false, null, ex.Message);
+            }
+        }
+
+        private static bool SetVolumeExact(int targetPercent)
+        {
+            try
+            {
+                var handle = Process.GetCurrentProcess().MainWindowHandle;
+                // Сброс до 0 (50 нажатий VolumeDown, т.к. шаг ~2%)
+                for (int i = 0; i < 50; i++)
+                {
+                    SendMessageW(handle, WM_APPCOMMAND, handle, (IntPtr)APPCOMMAND_VOLUME_DOWN);
+                    System.Threading.Thread.Sleep(5);
+                }
+                // Поднятие до targetPercent
+                int steps = targetPercent / 2;
+                for (int i = 0; i < steps; i++)
+                {
+                    SendMessageW(handle, WM_APPCOMMAND, handle, (IntPtr)APPCOMMAND_VOLUME_UP);
+                    System.Threading.Thread.Sleep(5);
+                }
+                return true;
+            }
+            catch
+            {
+                return false;
             }
         }
     }

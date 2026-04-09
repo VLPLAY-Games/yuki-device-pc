@@ -19,7 +19,7 @@ namespace Yuki_PC
         private readonly string[] _allCapabilities = new[]
         {
             "open_browser", "open_url", "shutdown", "restart", "sleep",
-            "volume_up", "volume_down", "volume_mute",
+            "volume_up", "volume_down", "volume_mute", "lock", "set_volume",
             "open_folder", "open_explorer", "open_notepad", "open_calculator"
         };
 
