@@ -1,5 +1,7 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Drawing;
+using System.Linq;
 using System.Windows.Forms;
 
 namespace Yuki_PC
@@ -9,10 +11,21 @@ namespace Yuki_PC
         private YukiClient _client;
         private bool _isUserDisconnect = false;
 
+        private bool _capabilitiesVisible = false;
+        private bool _logsVisible = false;
+
+        private readonly string[] _allCapabilities = new[]
+        {
+            "open_browser", "open_url", "shutdown", "restart", "sleep",
+            "volume_up", "volume_down", "volume_mute",
+            "open_folder", "open_explorer", "open_notepad", "open_calculator"
+        };
+
         public Form1()
         {
             InitializeComponent();
             InitializeClient();
+            InitializeCapabilitiesList();
 
             NativeMethods.HideConsoleWindow();
 
@@ -35,6 +48,8 @@ namespace Yuki_PC
             Logger.Info($"OS: {Environment.OSVersion}");
             Logger.Info($"Machine: {Environment.MachineName}");
             Logger.Info($"User: {Environment.UserName}");
+
+            UpdateFormHeight();
         }
 
         private void InitializeClient()
@@ -49,6 +64,16 @@ namespace Yuki_PC
                 else
                     labelDeviceId.Text = id;
             };
+        }
+
+        private void InitializeCapabilitiesList()
+        {
+            checkedListBoxCapabilities.Items.Clear();
+            foreach (var cap in _allCapabilities)
+            {
+                bool isChecked = !(cap == "shutdown" || cap == "restart" || cap == "sleep");
+                checkedListBoxCapabilities.Items.Add(cap, isChecked);
+            }
         }
 
         private void Client_OnStatusChanged(object sender, YukiClient.ConnectionStatus status)
@@ -162,6 +187,8 @@ namespace Yuki_PC
                     return;
                 }
 
+                var selectedCapabilities = checkedListBoxCapabilities.CheckedItems.Cast<string>().ToArray();
+                _client.SetCapabilities(selectedCapabilities);
                 _client.DeviceId = deviceId;
                 _client.AuthToken = authToken;
                 labelDeviceId.Text = deviceId;
@@ -259,6 +286,45 @@ namespace Yuki_PC
                 ExitApp();
             }
             base.OnFormClosing(e);
+        }
+
+        private void btnToggleCapabilities_Click(object sender, EventArgs e)
+        {
+            _capabilitiesVisible = !_capabilitiesVisible;
+            groupBoxCapabilities.Visible = _capabilitiesVisible;
+            btnToggleCapabilities.Text = _capabilitiesVisible ? "Hide features" : "Show features";
+            UpdateFormHeight();
+        }
+
+        private void btnToggleLogs_Click(object sender, EventArgs e)
+        {
+            _logsVisible = !_logsVisible;
+            textBoxLogs.Visible = _logsVisible;
+            btnToggleLogs.Text = _logsVisible ? "Hide logs" : "Show logs";
+            UpdateFormHeight();
+        }
+
+        private void UpdateFormHeight()
+        {
+            int buttonsBottom = btnToggleCapabilities.Bottom;
+
+            int yPos = buttonsBottom + 10;
+
+            if (_capabilitiesVisible)
+            {
+                groupBoxCapabilities.Top = yPos;
+                yPos += groupBoxCapabilities.Height + 10;
+            }
+            if (_logsVisible)
+            {
+                textBoxLogs.Top = yPos;
+                yPos += textBoxLogs.Height + 10;
+            }
+
+            int totalHeight = yPos + 20;
+            if (totalHeight < buttonsBottom + 40) totalHeight = buttonsBottom + 40;
+
+            this.ClientSize = new Size(this.ClientSize.Width, totalHeight);
         }
     }
 

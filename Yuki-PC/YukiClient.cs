@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Linq;
 using System.Net.WebSockets;
 using System.Text;
 using System.Text.Json;
@@ -17,12 +18,7 @@ namespace Yuki_PC
         private string _serverAddress;
         private string _sessionId;
         private int _heartbeatInterval = 30;
-        private readonly string[] _capabilities = new[]
-        {
-            "open_browser", "open_url", "shutdown", "restart", "sleep",
-            "volume_up", "volume_down", "volume_mute",
-            "open_folder", "open_explorer", "open_notepad", "open_calculator"
-        };
+        private string[] _enabledCapabilities = Array.Empty<string>();
 
         public string DeviceId { get; set; }
         public string AuthToken { get; set; }
@@ -44,6 +40,11 @@ namespace Yuki_PC
         public YukiClient()
         {
             _webSocket = new ClientWebSocket();
+        }
+
+        public void SetCapabilities(string[] capabilities)
+        {
+            _enabledCapabilities = capabilities ?? Array.Empty<string>();
         }
 
         public async Task ConnectAsync(string serverAddress)
@@ -102,9 +103,9 @@ namespace Yuki_PC
 
         private async Task SendHelloAsync(CancellationToken token)
         {
-            var hello = YukiProtocol.CreateHelloMessage(DeviceId, "yuki-device-pc", _capabilities, AuthToken);
+            var hello = YukiProtocol.CreateHelloMessage(DeviceId, "yuki-device-pc", _enabledCapabilities, AuthToken);
             await SendMessageAsync(hello, token);
-            Log(Logger.LogLevel.INFO, $"Sent hello for device '{DeviceId}'");
+            Log(Logger.LogLevel.INFO, $"Sent hello for device '{DeviceId}' with {_enabledCapabilities.Length} capabilities");
         }
 
         private async Task SendStatusAsync(string status, CancellationToken token)
@@ -226,6 +227,15 @@ namespace Yuki_PC
                 payload = paramsProp;
 
             Log(Logger.LogLevel.INFO, $"Command received: {command}");
+
+            if (!_enabledCapabilities.Contains(command, StringComparer.OrdinalIgnoreCase))
+            {
+                Log(Logger.LogLevel.WARN, $"Command '{command}' is disabled in client settings");
+                var errorRes = YukiProtocol.CreateCommandResultMessage(msg.Id, false, null, "Command disabled by user");
+                await SendMessageAsync(errorRes, token);
+                return;
+            }
+
             var (success, result, error) = await CommandHandler.ExecuteAsync(command, payload);
             var resMsg = YukiProtocol.CreateCommandResultMessage(msg.Id, success, result, error);
             await SendMessageAsync(resMsg, token);
@@ -256,7 +266,6 @@ namespace Yuki_PC
         {
             _cancellationTokenSource?.Cancel();
             _webSocket?.Dispose();
-            _receiveTask?.Dispose();
             _heartbeatTask?.Dispose();
         }
     }
