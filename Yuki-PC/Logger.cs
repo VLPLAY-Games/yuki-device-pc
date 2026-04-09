@@ -3,7 +3,7 @@ using System.IO;
 
 namespace Yuki_PC
 {
-    public static class Logger
+    public static partial class Logger
     {
         private static string logFolder;
         private static string logFile;
