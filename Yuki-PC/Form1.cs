@@ -1,7 +1,9 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Drawing;
+using System.IO;
 using System.Linq;
+using System.Text.Json;
 using System.Windows.Forms;
 
 namespace Yuki_PC
@@ -21,6 +23,8 @@ namespace Yuki_PC
             "open_folder", "open_explorer", "open_notepad", "open_calculator"
         };
 
+        private readonly string _settingsFilePath = "settings.json";
+
         public Form1()
         {
             InitializeComponent();
@@ -29,9 +33,18 @@ namespace Yuki_PC
 
             NativeMethods.HideConsoleWindow();
 
-            string deviceId = $"pc-{Environment.MachineName.ToLowerInvariant()}";
-            textBoxDeviceId.Text = deviceId;
-            labelDeviceId.Text = deviceId;
+            LoadSettings();
+
+            if (string.IsNullOrWhiteSpace(textBoxDeviceId.Text))
+            {
+                string deviceId = $"pc-{Environment.MachineName.ToLowerInvariant()}";
+                textBoxDeviceId.Text = deviceId;
+                labelDeviceId.Text = deviceId;
+            }
+            else
+            {
+                labelDeviceId.Text = textBoxDeviceId.Text;
+            }
 
             SetupTrayIcon();
 
@@ -44,12 +57,24 @@ namespace Yuki_PC
             };
 
             Logger.Info("=== Yuki PC started ===");
-            Logger.Info($"Device ID: {deviceId}");
+            Logger.Info($"Device ID: {labelDeviceId.Text}");
             Logger.Info($"OS: {Environment.OSVersion}");
             Logger.Info($"Machine: {Environment.MachineName}");
             Logger.Info($"User: {Environment.UserName}");
 
             UpdateFormHeight();
+
+            textBoxAddress.TextChanged += (s, e) => SaveSettings();
+            textBoxDeviceId.TextChanged += (s, e) =>
+            {
+                labelDeviceId.Text = textBoxDeviceId.Text;
+                SaveSettings();
+            };
+            textBoxAuthToken.TextChanged += (s, e) => SaveSettings();
+            checkedListBoxCapabilities.ItemCheck += (s, e) =>
+            {
+                BeginInvoke(new Action(SaveSettings));
+            };
         }
 
         private void InitializeClient()
@@ -73,6 +98,61 @@ namespace Yuki_PC
             {
                 bool isChecked = !(cap == "shutdown" || cap == "restart" || cap == "sleep");
                 checkedListBoxCapabilities.Items.Add(cap, isChecked);
+            }
+        }
+
+        private void LoadSettings()
+        {
+            if (!File.Exists(_settingsFilePath))
+                return;
+
+            try
+            {
+                string json = File.ReadAllText(_settingsFilePath);
+                var settings = JsonSerializer.Deserialize<AppSettings>(json);
+                if (settings == null) return;
+
+                if (!string.IsNullOrEmpty(settings.ServerAddress))
+                    textBoxAddress.Text = settings.ServerAddress;
+
+                if (!string.IsNullOrEmpty(settings.DeviceId))
+                    textBoxDeviceId.Text = settings.DeviceId;
+
+                if (!string.IsNullOrEmpty(settings.AuthToken))
+                    textBoxAuthToken.Text = settings.AuthToken;
+
+                if (settings.EnabledCapabilities != null && settings.EnabledCapabilities.Length > 0)
+                {
+                    for (int i = 0; i < checkedListBoxCapabilities.Items.Count; i++)
+                    {
+                        string cap = checkedListBoxCapabilities.Items[i].ToString();
+                        checkedListBoxCapabilities.SetItemChecked(i, settings.EnabledCapabilities.Contains(cap));
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.Error($"Failed to load settings: {ex.Message}");
+            }
+        }
+
+        private void SaveSettings()
+        {
+            try
+            {
+                var settings = new AppSettings
+                {
+                    ServerAddress = textBoxAddress.Text.Trim(),
+                    DeviceId = textBoxDeviceId.Text.Trim(),
+                    AuthToken = textBoxAuthToken.Text.Trim(),
+                    EnabledCapabilities = checkedListBoxCapabilities.CheckedItems.Cast<string>().ToArray()
+                };
+                string json = JsonSerializer.Serialize(settings, new JsonSerializerOptions { WriteIndented = true });
+                File.WriteAllText(_settingsFilePath, json);
+            }
+            catch (Exception ex)
+            {
+                Logger.Error($"Failed to save settings: {ex.Message}");
             }
         }
 
@@ -169,6 +249,8 @@ namespace Yuki_PC
 
         private async void buttonConnect_Click(object sender, EventArgs e)
         {
+            SaveSettings();
+
             if (_client.Status == YukiClient.ConnectionStatus.Connected)
             {
                 _isUserDisconnect = true;
@@ -261,6 +343,8 @@ namespace Yuki_PC
 
         private void ExitApp()
         {
+            SaveSettings();
+
             Logger.Info("Application exiting...");
             _client?.Dispose();
             trayIcon.Visible = false;
@@ -325,6 +409,14 @@ namespace Yuki_PC
             if (totalHeight < buttonsBottom + 40) totalHeight = buttonsBottom + 40;
 
             this.ClientSize = new Size(this.ClientSize.Width, totalHeight);
+        }
+
+        private class AppSettings
+        {
+            public string ServerAddress { get; set; }
+            public string DeviceId { get; set; }
+            public string AuthToken { get; set; }
+            public string[] EnabledCapabilities { get; set; }
         }
     }
 
