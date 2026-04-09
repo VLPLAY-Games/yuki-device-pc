@@ -89,6 +89,24 @@ namespace Yuki_PC
                 else
                     labelDeviceId.Text = id;
             };
+            _client.OnTokenUpdated += (newToken) =>
+            {
+                if (InvokeRequired)
+                {
+                    Invoke(new Action(() =>
+                    {
+                        textBoxAuthToken.Text = newToken;
+                        SaveSettings();
+                        Logger.Success("Auth token updated automatically from server.");
+                    }));
+                }
+                else
+                {
+                    textBoxAuthToken.Text = newToken;
+                    SaveSettings();
+                    Logger.Success("Auth token updated automatically from server.");
+                }
+            };
         }
 
         private void InitializeCapabilitiesList()

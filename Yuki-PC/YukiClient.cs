@@ -37,7 +37,7 @@ namespace Yuki_PC
             Connecting,
             Handshaking,
             Connected,
-            Reconnecting   // новый статус
+            Reconnecting
         }
 
         public ConnectionStatus Status { get; private set; } = ConnectionStatus.Disconnected;
@@ -45,6 +45,7 @@ namespace Yuki_PC
         public event EventHandler<ConnectionStatus> OnStatusChanged;
         public event Action<string, Logger.LogLevel> OnLog;
         public event Action<string> OnDeviceIdUpdated;
+        public event Action<string> OnTokenUpdated;  // Новое событие для обновления токена
 
         public YukiClient()
         {
@@ -61,7 +62,6 @@ namespace Yuki_PC
             if (Status != ConnectionStatus.Disconnected && Status != ConnectionStatus.Reconnecting)
                 await DisconnectAsync(userInitiated: true);
 
-            // Отменяем любые попытки переподключения
             CancelReconnection();
 
             _serverAddress = serverAddress;
@@ -93,7 +93,6 @@ namespace Yuki_PC
                 Log(Logger.LogLevel.ERROR, $"Connection failed: {ex.Message}");
                 UpdateStatus(ConnectionStatus.Disconnected);
                 await DisconnectAsync(userInitiated: false);
-                // Не запускаем авто-переподключение, потому что это была ручная попытка подключения
             }
         }
 
@@ -171,7 +170,6 @@ namespace Yuki_PC
             }
             finally
             {
-                // Соединение потеряно – запускаем переподключение, если это не было инициировано пользователем
                 await HandleConnectionLost();
             }
         }
@@ -181,7 +179,6 @@ namespace Yuki_PC
             if (_userInitiatedDisconnect || _disposed)
                 return;
 
-            // Если мы никогда не были в Connected, не переподключаемся автоматически
             if (!_wasConnectedOnce)
             {
                 UpdateStatus(ConnectionStatus.Disconnected);
@@ -195,7 +192,7 @@ namespace Yuki_PC
 
         private void StartReconnection()
         {
-            CancelReconnection(); // отменяем предыдущий цикл, если есть
+            CancelReconnection();
             _reconnectCts = new CancellationTokenSource();
             var token = _reconnectCts.Token;
 
@@ -204,7 +201,6 @@ namespace Yuki_PC
                 while (!token.IsCancellationRequested && !_userInitiatedDisconnect && !_disposed)
                 {
                     int delay = (int)Math.Pow(2, _reconnectAttempt) * _reconnectBackoffBase;
-                    // Ограничим максимум 60 секундами, чтобы не ждать слишком долго
                     if (delay > 60) delay = 60;
 
                     Log(Logger.LogLevel.INFO, $"Reconnection attempt {_reconnectAttempt + 1} in {delay} seconds...");
@@ -241,7 +237,6 @@ namespace Yuki_PC
         {
             try
             {
-                // Сбрасываем старое соединение
                 _cancellationTokenSource?.Cancel();
                 _webSocket?.Dispose();
                 _webSocket = new ClientWebSocket();
@@ -303,6 +298,20 @@ namespace Yuki_PC
                     case "ping":
                         var pong = new YukiMessage { Type = "pong", Id = Guid.NewGuid().ToString(), Payload = new JsonElement() };
                         await SendMessageAsync(pong, token);
+                        break;
+
+                    case "token_update":
+                        // Обработка обновления токена
+                        if (msg.Payload.TryGetProperty("new_token", out var tokenProp))
+                        {
+                            string newToken = tokenProp.GetString();
+                            if (!string.IsNullOrEmpty(newToken))
+                            {
+                                AuthToken = newToken;
+                                Log(Logger.LogLevel.SUCCESS, $"Token updated by server. Reason: {msg.Payload.GetProperty("reason").GetString()}");
+                                OnTokenUpdated?.Invoke(newToken);
+                            }
+                        }
                         break;
 
                     default:
