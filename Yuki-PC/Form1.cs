@@ -277,10 +277,24 @@ namespace Yuki_PC
             SaveSettings();
 
             if (_client.Status == YukiClient.ConnectionStatus.Connected ||
-                _client.Status == YukiClient.ConnectionStatus.Reconnecting)
+                _client.Status == YukiClient.ConnectionStatus.Reconnecting ||
+                _client.Status == YukiClient.ConnectionStatus.Handshaking ||
+                _client.Status == YukiClient.ConnectionStatus.Connecting)  // Добавили все состояния
             {
                 _isUserDisconnect = true;
-                await _client.DisconnectAsync(userInitiated: true);
+
+                // Если зависло в Handshaking - принудительно
+                if (_client.Status == YukiClient.ConnectionStatus.Handshaking ||
+                    _client.Status == YukiClient.ConnectionStatus.Connecting)
+                {
+                    _client.ForceDisconnect();
+                    // Обновляем UI сразу
+                    UpdateUIForStatus(YukiClient.ConnectionStatus.Disconnected);
+                }
+                else
+                {
+                    await _client.DisconnectAsync(userInitiated: true);
+                }
             }
             else if (_client.Status == YukiClient.ConnectionStatus.Disconnected)
             {

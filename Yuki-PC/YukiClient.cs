@@ -93,6 +93,17 @@ namespace Yuki_PC
                     _receiveTask = Task.Run(() => ReceiveLoopAsync(socket, token), token);
 
                     await SendHelloAsync(token, socket);
+
+                    // Добавляем таймаут на handshake (10 секунд)
+                    _ = Task.Run(async () =>
+                    {
+                        await Task.Delay(10000);
+                        if (Status == ConnectionStatus.Handshaking)
+                        {
+                            Log(Logger.LogLevel.WARN, "Handshake timeout, forcing disconnect");
+                            ForceDisconnect();
+                        }
+                    });
                 }
             }
             catch (Exception ex)
@@ -103,6 +114,7 @@ namespace Yuki_PC
             }
         }
 
+
         public async Task DisconnectAsync(bool userInitiated = true)
         {
             _userInitiatedDisconnect = userInitiated;
@@ -110,28 +122,36 @@ namespace Yuki_PC
 
             try
             {
+                // Отменяем все операции
                 _cancellationTokenSource?.Cancel();
+
                 await WaitForConnectionTasksAsync();
 
-                if (_webSocket?.State == WebSocketState.Open ||
-                    _webSocket?.State == WebSocketState.CloseReceived ||
-                    _webSocket?.State == WebSocketState.CloseSent)
+                // Принудительно закрываем WebSocket, даже если он в состоянии Connecting
+                if (_webSocket != null)
                 {
                     try
                     {
-                        await _webSocket.CloseAsync(
-                            WebSocketCloseStatus.NormalClosure,
-                            "Client disconnect",
-                            CancellationToken.None);
-                    }
-                    catch
-                    {
-                        // ignore shutdown race
-                    }
-                }
+                        // Если WebSocket все еще открывается или коннектится
+                        if (_webSocket.State == WebSocketState.Connecting ||
+                            _webSocket.State == WebSocketState.Open ||
+                            _webSocket.State == WebSocketState.CloseReceived ||
+                            _webSocket.State == WebSocketState.CloseSent)
+                        {
+                            // Используем Abort для принудительного закрытия
+                            _webSocket.Abort();
+                            Log(Logger.LogLevel.INFO, "WebSocket aborted");
+                        }
 
-                _webSocket?.Dispose();
-                _webSocket = new ClientWebSocket();
+                        _webSocket.Dispose();
+                    }
+                    catch (Exception ex)
+                    {
+                        Log(Logger.LogLevel.ERROR, $"Error during socket dispose: {ex.Message}");
+                    }
+
+                    _webSocket = new ClientWebSocket();
+                }
             }
             catch (Exception ex)
             {
@@ -143,6 +163,46 @@ namespace Yuki_PC
                 Log(Logger.LogLevel.INFO, "Disconnected from server");
             }
         }
+
+        public void ForceDisconnect()
+        {
+            Log(Logger.LogLevel.INFO, "Force disconnecting...");
+
+            _userInitiatedDisconnect = true;
+            CancelReconnection();
+
+            try
+            {
+                _cancellationTokenSource?.Cancel();
+
+                if (_webSocket != null)
+                {
+                    try
+                    {
+                        // Принудительное закрытие любым способом
+                        _webSocket.Abort();
+                    }
+                    catch { }
+
+                    try
+                    {
+                        _webSocket.Dispose();
+                    }
+                    catch { }
+
+                    _webSocket = new ClientWebSocket();
+                }
+            }
+            catch (Exception ex)
+            {
+                Log(Logger.LogLevel.ERROR, $"Force disconnect error: {ex.Message}");
+            }
+            finally
+            {
+                UpdateStatus(ConnectionStatus.Disconnected);
+            }
+        }
+
 
         private async Task SendHelloAsync(CancellationToken token, ClientWebSocket socket)
         {
@@ -570,6 +630,7 @@ namespace Yuki_PC
                             }
                             break;
                         }
+
 
                     default:
                         Log(Logger.LogLevel.WARN, $"Unhandled message type: {type}");
