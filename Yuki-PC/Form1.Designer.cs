@@ -33,6 +33,7 @@ namespace Yuki_PC
             btnToggleCapabilities = new Button();
             btnToggleLogs = new Button();
             buttonOpenLogs = new Button();
+            btnThemeToggle = new Button();
             groupBoxCapabilities = new GroupBox();
             checkedListBoxCapabilities = new CheckedListBox();
             textBoxLogs = new RichTextBox();
@@ -68,13 +69,15 @@ namespace Yuki_PC
             groupBoxServer.Controls.Add(labelAuthToken);
             groupBoxServer.Controls.Add(textBoxAuthToken);
             groupBoxServer.Controls.Add(checkBoxShowToken);
-            groupBoxServer.Font = new System.Drawing.Font("Segoe UI", 10F);
+            groupBoxServer.FlatStyle = FlatStyle.Flat;
+            groupBoxServer.Font = new System.Drawing.Font("Segoe UI", 10F, System.Drawing.FontStyle.Bold);
             groupBoxServer.Location = new System.Drawing.Point(20, 20);
             groupBoxServer.Name = "groupBoxServer";
+            groupBoxServer.Padding = new Padding(10);
             groupBoxServer.Size = new System.Drawing.Size(520, 250);
             groupBoxServer.TabIndex = 0;
             groupBoxServer.TabStop = false;
-            groupBoxServer.Text = "Server";
+            groupBoxServer.Text = "Server Connection";
             // 
             // labelStatusText
             // 
@@ -86,6 +89,7 @@ namespace Yuki_PC
             // 
             // labelStatusValue
             // 
+            labelStatusValue.Font = new System.Drawing.Font("Segoe UI", 10F, System.Drawing.FontStyle.Bold);
             labelStatusValue.ForeColor = System.Drawing.Color.Red;
             labelStatusValue.Location = new System.Drawing.Point(90, 30);
             labelStatusValue.Name = "labelStatusValue";
@@ -103,6 +107,7 @@ namespace Yuki_PC
             // 
             // textBoxAddress
             // 
+            textBoxAddress.Font = new System.Drawing.Font("Segoe UI", 10F);
             textBoxAddress.Location = new System.Drawing.Point(90, 62);
             textBoxAddress.Name = "textBoxAddress";
             textBoxAddress.Size = new System.Drawing.Size(280, 25);
@@ -111,9 +116,11 @@ namespace Yuki_PC
             // 
             // buttonConnect
             // 
+            buttonConnect.FlatStyle = FlatStyle.Flat;
+            buttonConnect.Font = new System.Drawing.Font("Segoe UI", 10F, System.Drawing.FontStyle.Bold);
             buttonConnect.Location = new System.Drawing.Point(380, 60);
             buttonConnect.Name = "buttonConnect";
-            buttonConnect.Size = new System.Drawing.Size(100, 28);
+            buttonConnect.Size = new System.Drawing.Size(110, 28);
             buttonConnect.TabIndex = 4;
             buttonConnect.Text = "Connect";
             buttonConnect.Click += buttonConnect_Click;
@@ -121,6 +128,7 @@ namespace Yuki_PC
             // buttonOpenPanel
             // 
             buttonOpenPanel.Enabled = false;
+            buttonOpenPanel.FlatStyle = FlatStyle.Flat;
             buttonOpenPanel.Location = new System.Drawing.Point(15, 180);
             buttonOpenPanel.Name = "buttonOpenPanel";
             buttonOpenPanel.Size = new System.Drawing.Size(200, 28);
@@ -138,9 +146,10 @@ namespace Yuki_PC
             // 
             // labelDeviceId
             // 
+            labelDeviceId.Font = new System.Drawing.Font("Segoe UI", 9F, System.Drawing.FontStyle.Italic);
             labelDeviceId.Location = new System.Drawing.Point(90, 100);
             labelDeviceId.Name = "labelDeviceId";
-            labelDeviceId.Size = new System.Drawing.Size(100, 23);
+            labelDeviceId.Size = new System.Drawing.Size(120, 23);
             labelDeviceId.TabIndex = 8;
             labelDeviceId.Text = "pc-1";
             // 
@@ -178,40 +187,56 @@ namespace Yuki_PC
             // 
             // btnToggleCapabilities
             // 
+            btnToggleCapabilities.FlatStyle = FlatStyle.Flat;
             btnToggleCapabilities.Font = new System.Drawing.Font("Microsoft Sans Serif", 10F);
             btnToggleCapabilities.Location = new System.Drawing.Point(20, 276);
             btnToggleCapabilities.Name = "btnToggleCapabilities";
-            btnToggleCapabilities.Size = new System.Drawing.Size(128, 28);
+            btnToggleCapabilities.Size = new System.Drawing.Size(128, 32);
             btnToggleCapabilities.TabIndex = 13;
             btnToggleCapabilities.Text = "Show features";
             btnToggleCapabilities.Click += btnToggleCapabilities_Click;
             // 
             // btnToggleLogs
             // 
+            btnToggleLogs.FlatStyle = FlatStyle.Flat;
             btnToggleLogs.Font = new System.Drawing.Font("Microsoft Sans Serif", 10F);
             btnToggleLogs.Location = new System.Drawing.Point(154, 276);
             btnToggleLogs.Name = "btnToggleLogs";
-            btnToggleLogs.Size = new System.Drawing.Size(128, 28);
+            btnToggleLogs.Size = new System.Drawing.Size(128, 32);
             btnToggleLogs.TabIndex = 14;
             btnToggleLogs.Text = "Show logs";
             btnToggleLogs.Click += btnToggleLogs_Click;
             // 
             // buttonOpenLogs
             // 
+            buttonOpenLogs.FlatStyle = FlatStyle.Flat;
             buttonOpenLogs.Font = new System.Drawing.Font("Microsoft Sans Serif", 10F);
             buttonOpenLogs.Location = new System.Drawing.Point(288, 276);
             buttonOpenLogs.Name = "buttonOpenLogs";
-            buttonOpenLogs.Size = new System.Drawing.Size(134, 28);
+            buttonOpenLogs.Size = new System.Drawing.Size(134, 32);
             buttonOpenLogs.TabIndex = 6;
             buttonOpenLogs.Text = "Open Logs Folder";
             buttonOpenLogs.Click += buttonOpenLogs_Click;
             // 
+            // btnThemeToggle
+            // 
+            btnThemeToggle.FlatStyle = FlatStyle.Flat;
+            btnThemeToggle.Font = new System.Drawing.Font("Microsoft Sans Serif", 10F);
+            btnThemeToggle.Location = new System.Drawing.Point(428, 276);
+            btnThemeToggle.Name = "btnThemeToggle";
+            btnThemeToggle.Size = new System.Drawing.Size(112, 32);
+            btnThemeToggle.TabIndex = 17;
+            btnThemeToggle.Text = "🌙 Dark";
+            btnThemeToggle.Click += btnThemeToggle_Click;
+            // 
             // groupBoxCapabilities
             // 
             groupBoxCapabilities.Controls.Add(checkedListBoxCapabilities);
-            groupBoxCapabilities.Font = new System.Drawing.Font("Segoe UI", 10F);
+            groupBoxCapabilities.FlatStyle = FlatStyle.Flat;
+            groupBoxCapabilities.Font = new System.Drawing.Font("Segoe UI", 10F, System.Drawing.FontStyle.Bold);
             groupBoxCapabilities.Location = new System.Drawing.Point(20, 491);
             groupBoxCapabilities.Name = "groupBoxCapabilities";
+            groupBoxCapabilities.Padding = new Padding(10);
             groupBoxCapabilities.Size = new System.Drawing.Size(520, 200);
             groupBoxCapabilities.TabIndex = 2;
             groupBoxCapabilities.TabStop = false;
@@ -220,21 +245,18 @@ namespace Yuki_PC
             // 
             // checkedListBoxCapabilities
             // 
-            checkedListBoxCapabilities.BackColor = System.Drawing.Color.FromArgb(26, 31, 38);
             checkedListBoxCapabilities.BorderStyle = BorderStyle.None;
             checkedListBoxCapabilities.CheckOnClick = true;
-            checkedListBoxCapabilities.ForeColor = System.Drawing.Color.White;
+            checkedListBoxCapabilities.Font = new System.Drawing.Font("Segoe UI", 9F);
             checkedListBoxCapabilities.FormattingEnabled = true;
-            checkedListBoxCapabilities.Location = new System.Drawing.Point(15, 25);
+            checkedListBoxCapabilities.Location = new System.Drawing.Point(15, 30);
             checkedListBoxCapabilities.Name = "checkedListBoxCapabilities";
-            checkedListBoxCapabilities.Size = new System.Drawing.Size(490, 160);
+            checkedListBoxCapabilities.Size = new System.Drawing.Size(490, 144);
             checkedListBoxCapabilities.TabIndex = 0;
             // 
             // textBoxLogs
             // 
-            textBoxLogs.BackColor = System.Drawing.Color.Black;
             textBoxLogs.Font = new System.Drawing.Font("Consolas", 9F);
-            textBoxLogs.ForeColor = System.Drawing.Color.White;
             textBoxLogs.Location = new System.Drawing.Point(20, 706);
             textBoxLogs.Name = "textBoxLogs";
             textBoxLogs.ReadOnly = true;
@@ -248,10 +270,12 @@ namespace Yuki_PC
             groupExtended.Controls.Add(labelSub);
             groupExtended.Controls.Add(comboSubstatus);
             groupExtended.Controls.Add(btnUpdateStatus);
-            groupExtended.Font = new System.Drawing.Font("Segoe UI", 10F);
+            groupExtended.FlatStyle = FlatStyle.Flat;
+            groupExtended.Font = new System.Drawing.Font("Segoe UI", 10F, System.Drawing.FontStyle.Bold);
             groupExtended.Location = new System.Drawing.Point(20, 315);
             groupExtended.Name = "groupExtended";
-            groupExtended.Size = new System.Drawing.Size(250, 100);
+            groupExtended.Padding = new Padding(10);
+            groupExtended.Size = new System.Drawing.Size(250, 110);
             groupExtended.TabIndex = 15;
             groupExtended.TabStop = false;
             groupExtended.Text = "Extended Status";
@@ -260,24 +284,27 @@ namespace Yuki_PC
             // 
             labelSub.Location = new System.Drawing.Point(10, 30);
             labelSub.Name = "labelSub";
-            labelSub.Size = new System.Drawing.Size(70, 25);
+            labelSub.Size = new System.Drawing.Size(74, 25);
             labelSub.TabIndex = 0;
             labelSub.Text = "Substatus:";
             // 
             // comboSubstatus
             // 
             comboSubstatus.DropDownStyle = ComboBoxStyle.DropDownList;
+            comboSubstatus.FlatStyle = FlatStyle.Flat;
+            comboSubstatus.Font = new System.Drawing.Font("Segoe UI", 9F);
             comboSubstatus.Items.AddRange(new object[] { "idle", "working", "sleeping", "charging", "error", "updating", "maintenance" });
-            comboSubstatus.Location = new System.Drawing.Point(90, 28);
+            comboSubstatus.Location = new System.Drawing.Point(97, 28);
             comboSubstatus.Name = "comboSubstatus";
-            comboSubstatus.Size = new System.Drawing.Size(140, 25);
+            comboSubstatus.Size = new System.Drawing.Size(140, 23);
             comboSubstatus.TabIndex = 1;
             // 
             // btnUpdateStatus
             // 
-            btnUpdateStatus.Location = new System.Drawing.Point(90, 60);
+            btnUpdateStatus.FlatStyle = FlatStyle.Flat;
+            btnUpdateStatus.Location = new System.Drawing.Point(90, 65);
             btnUpdateStatus.Name = "btnUpdateStatus";
-            btnUpdateStatus.Size = new System.Drawing.Size(80, 25);
+            btnUpdateStatus.Size = new System.Drawing.Size(80, 28);
             btnUpdateStatus.TabIndex = 2;
             btnUpdateStatus.Text = "Update";
             btnUpdateStatus.Click += btnUpdateStatus_Click;
@@ -291,10 +318,12 @@ namespace Yuki_PC
             groupD2D.Controls.Add(labelPayload);
             groupD2D.Controls.Add(textPayload);
             groupD2D.Controls.Add(btnSendToDevice);
-            groupD2D.Font = new System.Drawing.Font("Segoe UI", 10F);
+            groupD2D.FlatStyle = FlatStyle.Flat;
+            groupD2D.Font = new System.Drawing.Font("Segoe UI", 10F, System.Drawing.FontStyle.Bold);
             groupD2D.Location = new System.Drawing.Point(290, 315);
             groupD2D.Name = "groupD2D";
-            groupD2D.Size = new System.Drawing.Size(250, 170);
+            groupD2D.Padding = new Padding(10);
+            groupD2D.Size = new System.Drawing.Size(250, 180);
             groupD2D.TabIndex = 16;
             groupD2D.TabStop = false;
             groupD2D.Text = "Send to Device";
@@ -309,10 +338,11 @@ namespace Yuki_PC
             // 
             // textTargetDevice
             // 
+            textTargetDevice.Font = new System.Drawing.Font("Segoe UI", 9F);
             textTargetDevice.Location = new System.Drawing.Point(110, 28);
             textTargetDevice.Name = "textTargetDevice";
             textTargetDevice.PlaceholderText = "device-id";
-            textTargetDevice.Size = new System.Drawing.Size(120, 25);
+            textTargetDevice.Size = new System.Drawing.Size(120, 23);
             textTargetDevice.TabIndex = 1;
             // 
             // labelCmd
@@ -325,10 +355,11 @@ namespace Yuki_PC
             // 
             // textCustomCommand
             // 
+            textCustomCommand.Font = new System.Drawing.Font("Segoe UI", 9F);
             textCustomCommand.Location = new System.Drawing.Point(110, 62);
             textCustomCommand.Name = "textCustomCommand";
             textCustomCommand.PlaceholderText = "command";
-            textCustomCommand.Size = new System.Drawing.Size(120, 25);
+            textCustomCommand.Size = new System.Drawing.Size(120, 23);
             textCustomCommand.TabIndex = 3;
             // 
             // labelPayload
@@ -341,18 +372,20 @@ namespace Yuki_PC
             // 
             // textPayload
             // 
+            textPayload.Font = new System.Drawing.Font("Segoe UI", 9F);
             textPayload.Location = new System.Drawing.Point(110, 98);
             textPayload.Name = "textPayload";
             textPayload.PlaceholderText = "{}";
-            textPayload.Size = new System.Drawing.Size(120, 25);
+            textPayload.Size = new System.Drawing.Size(120, 23);
             textPayload.TabIndex = 5;
             // 
             // btnSendToDevice
             // 
             btnSendToDevice.Enabled = false;
+            btnSendToDevice.FlatStyle = FlatStyle.Flat;
             btnSendToDevice.Location = new System.Drawing.Point(10, 136);
             btnSendToDevice.Name = "btnSendToDevice";
-            btnSendToDevice.Size = new System.Drawing.Size(100, 28);
+            btnSendToDevice.Size = new System.Drawing.Size(110, 28);
             btnSendToDevice.TabIndex = 6;
             btnSendToDevice.Text = "Send to Device";
             btnSendToDevice.Click += btnSendToDevice_Click;
@@ -362,6 +395,7 @@ namespace Yuki_PC
             ClientSize = new System.Drawing.Size(564, 874);
             Controls.Add(groupD2D);
             Controls.Add(groupExtended);
+            Controls.Add(btnThemeToggle);
             Controls.Add(btnToggleCapabilities);
             Controls.Add(btnToggleLogs);
             Controls.Add(groupBoxServer);
@@ -371,7 +405,8 @@ namespace Yuki_PC
             FormBorderStyle = FormBorderStyle.FixedSingle;
             MaximizeBox = false;
             Name = "Form1";
-            Text = "Yuki PC";
+            StartPosition = FormStartPosition.CenterScreen;
+            Text = "Yuki PC - Remote Control Client";
             groupBoxServer.ResumeLayout(false);
             groupBoxServer.PerformLayout();
             groupBoxCapabilities.ResumeLayout(false);
@@ -402,8 +437,8 @@ namespace Yuki_PC
         private System.Windows.Forms.RichTextBox textBoxLogs;
         private Button btnToggleCapabilities;
         private Button btnToggleLogs;
+        private Button btnThemeToggle;
 
-        // Новые контролы
         private GroupBox groupExtended;
         private Label labelSub;
         private ComboBox comboSubstatus;

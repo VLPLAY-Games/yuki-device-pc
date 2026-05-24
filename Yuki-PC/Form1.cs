@@ -15,6 +15,7 @@ namespace Yuki_PC
         private bool _isUserDisconnect = false;
         private bool _capabilitiesVisible = false;
         private bool _logsVisible = false;
+        private bool _isDarkTheme = true;
 
         private readonly string[] _allCapabilities = new[]
         {
@@ -31,6 +32,7 @@ namespace Yuki_PC
             InitializeClient();
             InitializeCapabilitiesList();
             LoadSettingsAndApply();
+            ApplyTheme();
 
             NativeMethods.HideConsoleWindow();
 
@@ -65,6 +67,110 @@ namespace Yuki_PC
             };
         }
 
+        private void ApplyTheme()
+        {
+            if (_isDarkTheme)
+            {
+                this.BackColor = Color.FromArgb(32, 32, 32);
+                this.ForeColor = Color.FromArgb(220, 220, 220);
+
+                foreach (Control ctrl in GetAllControls(this))
+                {
+                    ApplyThemeToControl(ctrl);
+                }
+
+                // Особые настройки для RichTextBox
+                textBoxLogs.BackColor = Color.FromArgb(20, 20, 20);
+                textBoxLogs.ForeColor = Color.FromArgb(200, 200, 200);
+                textBoxLogs.BorderStyle = BorderStyle.None;
+
+                checkedListBoxCapabilities.BackColor = Color.FromArgb(25, 25, 25);
+                checkedListBoxCapabilities.ForeColor = Color.FromArgb(200, 200, 200);
+
+                btnToggleCapabilities.BackColor = Color.FromArgb(60, 60, 60);
+                btnToggleLogs.BackColor = Color.FromArgb(60, 60, 60);
+                buttonOpenLogs.BackColor = Color.FromArgb(60, 60, 60);
+                btnThemeToggle.BackColor = Color.FromArgb(60, 60, 60);
+                btnUpdateStatus.BackColor = Color.FromArgb(60, 60, 60);
+                btnSendToDevice.BackColor = Color.FromArgb(60, 60, 60);
+                buttonConnect.BackColor = Color.FromArgb(60, 60, 60);
+                buttonOpenPanel.BackColor = Color.FromArgb(60, 60, 60);
+            }
+            else
+            {
+                this.BackColor = Color.FromArgb(240, 240, 240);
+                this.ForeColor = Color.FromArgb(40, 40, 40);
+
+                foreach (Control ctrl in GetAllControls(this))
+                {
+                    ApplyThemeToControl(ctrl);
+                }
+
+                textBoxLogs.BackColor = Color.White;
+                textBoxLogs.ForeColor = Color.Black;
+                textBoxLogs.BorderStyle = BorderStyle.FixedSingle;
+
+                checkedListBoxCapabilities.BackColor = Color.White;
+                checkedListBoxCapabilities.ForeColor = Color.Black;
+
+                btnToggleCapabilities.BackColor = Color.FromArgb(220, 220, 220);
+                btnToggleLogs.BackColor = Color.FromArgb(220, 220, 220);
+                buttonOpenLogs.BackColor = Color.FromArgb(220, 220, 220);
+                btnThemeToggle.BackColor = Color.FromArgb(220, 220, 220);
+                btnUpdateStatus.BackColor = Color.FromArgb(220, 220, 220);
+                btnSendToDevice.BackColor = Color.FromArgb(220, 220, 220);
+                buttonConnect.BackColor = Color.FromArgb(220, 220, 220);
+                buttonOpenPanel.BackColor = Color.FromArgb(220, 220, 220);
+            }
+        }
+
+        private void ApplyThemeToControl(Control ctrl)
+        {
+            if (ctrl is GroupBox groupBox)
+            {
+                groupBox.ForeColor = _isDarkTheme ? Color.FromArgb(200, 200, 200) : Color.FromArgb(40, 40, 40);
+            }
+            else if (ctrl is Label label)
+            {
+                label.ForeColor = _isDarkTheme ? Color.FromArgb(200, 200, 200) : Color.FromArgb(40, 40, 40);
+            }
+            else if (ctrl is TextBox textBox)
+            {
+                textBox.BackColor = _isDarkTheme ? Color.FromArgb(45, 45, 45) : Color.White;
+                textBox.ForeColor = _isDarkTheme ? Color.FromArgb(220, 220, 220) : Color.Black;
+                textBox.BorderStyle = BorderStyle.FixedSingle;
+            }
+            else if (ctrl is ComboBox comboBox)
+            {
+                comboBox.BackColor = _isDarkTheme ? Color.FromArgb(45, 45, 45) : Color.White;
+                comboBox.ForeColor = _isDarkTheme ? Color.FromArgb(220, 220, 220) : Color.Black;
+                comboBox.FlatStyle = FlatStyle.Flat;
+            }
+            else if (ctrl is CheckBox checkBox)
+            {
+                checkBox.ForeColor = _isDarkTheme ? Color.FromArgb(200, 200, 200) : Color.FromArgb(40, 40, 40);
+            }
+            else if (ctrl is Button button)
+            {
+                button.FlatStyle = FlatStyle.Flat;
+                button.FlatAppearance.BorderSize = 0;
+                button.BackColor = _isDarkTheme ? Color.FromArgb(60, 60, 60) : Color.FromArgb(220, 220, 220);
+                button.ForeColor = _isDarkTheme ? Color.White : Color.Black;
+            }
+        }
+
+        private IEnumerable<Control> GetAllControls(Control parent)
+        {
+            foreach (Control control in parent.Controls)
+            {
+                yield return control;
+                foreach (Control child in GetAllControls(control))
+                {
+                    yield return child;
+                }
+            }
+        }
+
         private void LoadSettingsAndApply()
         {
             LoadSettings();
@@ -78,6 +184,22 @@ namespace Yuki_PC
             else
             {
                 labelDeviceId.Text = textBoxDeviceId.Text;
+            }
+
+            // Загрузка настройки темы
+            if (File.Exists(_settingsFilePath))
+            {
+                try
+                {
+                    string json = File.ReadAllText(_settingsFilePath);
+                    var settings = JsonSerializer.Deserialize<AppSettings>(json);
+                    if (settings != null)
+                    {
+                        _isDarkTheme = settings.IsDarkTheme;
+                        btnThemeToggle.Text = _isDarkTheme ? "🌙 Dark" : "☀️ Light";
+                    }
+                }
+                catch { }
             }
         }
 
@@ -203,15 +325,15 @@ namespace Yuki_PC
             {
                 rtb.SelectionStart = rtb.TextLength;
                 rtb.SelectionLength = 0;
-                rtb.SelectionColor = Color.Cyan;
+                rtb.SelectionColor = _isDarkTheme ? Color.Cyan : Color.Blue;
                 rtb.AppendText($"[{DateTime.Now:HH:mm:ss}] ");
-                rtb.SelectionColor = Color.Yellow;
+                rtb.SelectionColor = _isDarkTheme ? Color.Yellow : Color.Orange;
                 rtb.AppendText($"[DEVICE→CMD] ");
-                rtb.SelectionColor = Color.LightGreen;
+                rtb.SelectionColor = _isDarkTheme ? Color.LightGreen : Color.Green;
                 rtb.AppendText($"from {fromDevice}: {command}");
                 if (payload != null && payload.ToString() != "{}")
                 {
-                    rtb.SelectionColor = Color.Gray;
+                    rtb.SelectionColor = _isDarkTheme ? Color.Gray : Color.DimGray;
                     rtb.AppendText($" {payload}");
                 }
                 rtb.AppendText(Environment.NewLine);
@@ -264,6 +386,10 @@ namespace Yuki_PC
                     int idx = comboSubstatus.Items.IndexOf(settings.Substatus);
                     if (idx >= 0) comboSubstatus.SelectedIndex = idx;
                 }
+                if (settings.WindowBounds != null)
+                {
+                    this.Bounds = settings.WindowBounds;
+                }
             }
             catch (Exception ex)
             {
@@ -281,7 +407,9 @@ namespace Yuki_PC
                     DeviceId = textBoxDeviceId.Text.Trim(),
                     AuthToken = textBoxAuthToken.Text.Trim(),
                     EnabledCapabilities = checkedListBoxCapabilities.CheckedItems.Cast<string>().ToArray(),
-                    Substatus = comboSubstatus?.SelectedItem?.ToString()
+                    Substatus = comboSubstatus?.SelectedItem?.ToString(),
+                    IsDarkTheme = _isDarkTheme,
+                    WindowBounds = this.WindowState == FormWindowState.Normal ? this.Bounds : this.RestoreBounds
                 };
                 string json = JsonSerializer.Serialize(settings, new JsonSerializerOptions { WriteIndented = true });
                 File.WriteAllText(_settingsFilePath, json);
@@ -311,7 +439,6 @@ namespace Yuki_PC
                     buttonConnect.Enabled = true;
                     buttonOpenPanel.Enabled = false;
                     btnSendToDevice.Enabled = false;
-                    // Останавливаем отправку метрик при отключении
                     _client?.StopMetricsReporting();
                     _client?.StopPeriodicStatus();
                     break;
@@ -330,17 +457,13 @@ namespace Yuki_PC
                     btnSendToDevice.Enabled = true;
                     _isUserDisconnect = false;
 
-                    // Запускаем отправку метрик и статуса с небольшой задержкой после подключения
-                    // Используем Task.Delay чтобы дать время WebSocket стабилизироваться
                     Task.Run(async () =>
                     {
-                        await Task.Delay(1000); // Ждем 1 секунду после подключения
+                        await Task.Delay(1000);
                         if (_client.Status == YukiClient.ConnectionStatus.Connected)
                         {
                             _client.StartMetricsReporting(60);
                             _client.StartPeriodicStatus(30);
-
-                            // Отправляем первый extended status сразу
                             _client.SetExtendedStatus(comboSubstatus.SelectedItem.ToString());
                         }
                     });
@@ -371,12 +494,12 @@ namespace Yuki_PC
         {
             Color color = level switch
             {
-                Logger.LogLevel.INFO => Color.LightBlue,
-                Logger.LogLevel.WARN => Color.Orange,
+                Logger.LogLevel.INFO => _isDarkTheme ? Color.LightBlue : Color.Blue,
+                Logger.LogLevel.WARN => _isDarkTheme ? Color.Orange : Color.OrangeRed,
                 Logger.LogLevel.ERROR => Color.Red,
-                Logger.LogLevel.DEBUG => Color.Gray,
-                Logger.LogLevel.SUCCESS => Color.LightGreen,
-                _ => Color.White
+                Logger.LogLevel.DEBUG => _isDarkTheme ? Color.Gray : Color.DimGray,
+                Logger.LogLevel.SUCCESS => _isDarkTheme ? Color.LightGreen : Color.Green,
+                _ => _isDarkTheme ? Color.White : Color.Black
             };
 
             if (textBoxLogs is RichTextBox rtb)
@@ -549,22 +672,14 @@ namespace Yuki_PC
 
         private void UpdateFormLayout()
         {
-            // Сначала сбрасываем позиции всех элементов в значение из дизайнера
-            // (они будут переопределены ниже, но это нужно для правильного расчета)
-
-            // Рассчитываем Y позицию для Extended Status (под кнопками)
             int currentY = btnToggleCapabilities.Bottom + 15;
-
-            // Если кнопки не видны или что-то пошло не так, используем значение из дизайнера
             if (currentY < 300) currentY = 315;
 
-            // Extended Status Group и Send to Device - в ряд
             groupExtended.Location = new Point(20, currentY);
             groupD2D.Location = new Point(290, currentY);
 
             currentY += groupExtended.Height + 15;
 
-            // Capabilities Group
             if (_capabilitiesVisible)
             {
                 groupBoxCapabilities.Location = new Point(20, currentY + 60);
@@ -574,10 +689,8 @@ namespace Yuki_PC
             else
             {
                 groupBoxCapabilities.Visible = false;
-                // Даже если не виден, его позиция не нужна
             }
 
-            // Logs
             if (_logsVisible)
             {
                 textBoxLogs.Location = new Point(20, currentY + 60);
@@ -589,13 +702,11 @@ namespace Yuki_PC
                 textBoxLogs.Visible = false;
             }
 
-            // Resize form
             int formHeight = currentY + 60;
             if (formHeight < 600) formHeight = 600;
             if (formHeight > 1000) formHeight = 1000;
             this.ClientSize = new Size(580, formHeight);
 
-            // Принудительно обновляем форму
             this.Refresh();
         }
 
@@ -613,6 +724,14 @@ namespace Yuki_PC
             UpdateFormLayout();
         }
 
+        private void btnThemeToggle_Click(object sender, EventArgs e)
+        {
+            _isDarkTheme = !_isDarkTheme;
+            btnThemeToggle.Text = _isDarkTheme ? "🌙 Dark" : "☀️ Light";
+            ApplyTheme();
+            SaveSettings();
+        }
+
         private class AppSettings
         {
             public string ServerAddress { get; set; }
@@ -620,6 +739,8 @@ namespace Yuki_PC
             public string AuthToken { get; set; }
             public string[] EnabledCapabilities { get; set; }
             public string Substatus { get; set; }
+            public bool IsDarkTheme { get; set; } = true;
+            public Rectangle WindowBounds { get; set; }
         }
     }
 
