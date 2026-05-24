@@ -24,34 +24,14 @@ namespace Yuki_PC
 
         private readonly string _settingsFilePath = "settings.json";
 
-        // New UI controls
-        private ComboBox comboSubstatus;
-        private TextBox textTargetDevice;
-        private TextBox textCustomCommand;
-        private RichTextBox textDeviceMessages;
-        private Button btnSendToDevice;
-        private Button btnBroadcast;
-
         public Form1()
         {
             InitializeComponent();
             InitializeClient();
             InitializeCapabilitiesList();
-            InitializeNewControls();
+            LoadSettingsAndApply();
 
             NativeMethods.HideConsoleWindow();
-            LoadSettings();
-
-            if (string.IsNullOrWhiteSpace(textBoxDeviceId.Text))
-            {
-                string deviceId = $"pc-{Environment.MachineName.ToLowerInvariant()}";
-                textBoxDeviceId.Text = deviceId;
-                labelDeviceId.Text = deviceId;
-            }
-            else
-            {
-                labelDeviceId.Text = textBoxDeviceId.Text;
-            }
 
             SetupTrayIcon();
 
@@ -69,7 +49,7 @@ namespace Yuki_PC
             Logger.Info($"Machine: {Environment.MachineName}");
             Logger.Info($"User: {Environment.UserName}");
 
-            UpdateFormHeight();
+            UpdateFormLayout();
 
             textBoxAddress.TextChanged += (s, e) => SaveSettings();
             textBoxDeviceId.TextChanged += (s, e) =>
@@ -84,260 +64,109 @@ namespace Yuki_PC
             };
         }
 
-        private void InitializeNewControls()
+        private void LoadSettingsAndApply()
         {
-            // Extended Status Group
-            var groupExtended = new GroupBox
+            LoadSettings();
+
+            if (string.IsNullOrWhiteSpace(textBoxDeviceId.Text))
             {
-                Text = "Extended Status",
-                Location = new Point(20, 276),
-                Size = new Size(250, 100),
-                Font = new Font("Segoe UI", 10F)
-            };
-
-            var labelSub = new Label
+                string deviceId = $"pc-{Environment.MachineName.ToLowerInvariant()}";
+                textBoxDeviceId.Text = deviceId;
+                labelDeviceId.Text = deviceId;
+            }
+            else
             {
-                Text = "Substatus:",
-                Location = new Point(10, 30),
-                Size = new Size(70, 25)
-            };
-
-            comboSubstatus = new ComboBox
-            {
-                Location = new Point(90, 28),
-                Size = new Size(140, 25),
-                DropDownStyle = ComboBoxStyle.DropDownList
-            };
-            comboSubstatus.Items.AddRange(new[] { "idle", "working", "sleeping", "charging", "error", "updating", "maintenance" });
-            comboSubstatus.SelectedIndex = 0;
-            comboSubstatus.SelectedIndexChanged += (s, e) =>
-            {
-                _client?.SetExtendedStatus(comboSubstatus.SelectedItem.ToString());
-            };
-
-            var btnUpdateStatus = new Button
-            {
-                Text = "Update",
-                Location = new Point(90, 60),
-                Size = new Size(80, 25)
-            };
-            btnUpdateStatus.Click += (s, e) =>
-            {
-                _client?.SetExtendedStatus(comboSubstatus.SelectedItem.ToString());
-                Logger.Info($"Extended status updated to: {comboSubstatus.SelectedItem}");
-            };
-
-            groupExtended.Controls.Add(labelSub);
-            groupExtended.Controls.Add(comboSubstatus);
-            groupExtended.Controls.Add(btnUpdateStatus);
-
-            // Device-to-Device Group
-            var groupD2D = new GroupBox
-            {
-                Text = "Send to Device",
-                Location = new Point(290, 276),
-                Size = new Size(250, 170),
-                Font = new Font("Segoe UI", 10F)
-            };
-
-            var labelTarget = new Label
-            {
-                Text = "Target Device:",
-                Location = new Point(10, 30),
-                Size = new Size(90, 25)
-            };
-
-            textTargetDevice = new TextBox
-            {
-                Location = new Point(110, 28),
-                Size = new Size(120, 25),
-                PlaceholderText = "device-id"
-            };
-
-            var labelCmd = new Label
-            {
-                Text = "Command:",
-                Location = new Point(10, 65),
-                Size = new Size(70, 25)
-            };
-
-            textCustomCommand = new TextBox
-            {
-                Location = new Point(90, 63),
-                Size = new Size(140, 25),
-                PlaceholderText = "command"
-            };
-
-            var labelPayload = new Label
-            {
-                Text = "Payload (JSON):",
-                Location = new Point(10, 100),
-                Size = new Size(90, 25)
-            };
-
-            var textPayload = new TextBox
-            {
-                Location = new Point(110, 98),
-                Size = new Size(120, 25),
-                PlaceholderText = "{}"
-            };
-
-            btnSendToDevice = new Button
-            {
-                Text = "Send to Device",
-                Location = new Point(90, 135),
-                Size = new Size(100, 28),
-                Enabled = false
-            };
-            btnSendToDevice.Click += async (s, e) =>
-            {
-                if (_client.Status != YukiClient.ConnectionStatus.Connected)
-                {
-                    MessageBox.Show("Not connected to server.", "Not Connected", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                    return;
-                }
-
-                if (string.IsNullOrEmpty(textTargetDevice.Text))
-                {
-                    MessageBox.Show("Enter target device ID.", "Missing Target", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                    return;
-                }
-
-                if (string.IsNullOrEmpty(textCustomCommand.Text))
-                {
-                    MessageBox.Show("Enter command.", "Missing Command", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                    return;
-                }
-
-                object payload = null;
-                if (!string.IsNullOrEmpty(textPayload.Text) && textPayload.Text != "{}")
-                {
-                    try
-                    {
-                        payload = JsonSerializer.Deserialize<object>(textPayload.Text);
-                    }
-                    catch
-                    {
-                        Logger.Error("Invalid JSON payload");
-                        MessageBox.Show("Invalid JSON payload.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                        return;
-                    }
-                }
-
-                await _client.SendToDeviceAsync(textTargetDevice.Text, textCustomCommand.Text, payload);
-                Logger.Info($"Sent to {textTargetDevice.Text}: {textCustomCommand.Text}");
-                AddDeviceMessage($"→ {textTargetDevice.Text}: {textCustomCommand.Text}", Color.LightGreen);
-            };
-
-            groupD2D.Controls.Add(labelTarget);
-            groupD2D.Controls.Add(textTargetDevice);
-            groupD2D.Controls.Add(labelCmd);
-            groupD2D.Controls.Add(textCustomCommand);
-            groupD2D.Controls.Add(labelPayload);
-            groupD2D.Controls.Add(textPayload);
-            groupD2D.Controls.Add(btnSendToDevice);
-
-            // Broadcast Button
-            btnBroadcast = new Button
-            {
-                Text = "Broadcast",
-                Location = new Point(200, 276),
-                Size = new Size(80, 28),
-                Enabled = false,
-                BackColor = Color.DarkOrange,
-                ForeColor = Color.White,
-                FlatStyle = FlatStyle.Flat
-            };
-            btnBroadcast.Click += async (s, e) =>
-            {
-                if (_client.Status != YukiClient.ConnectionStatus.Connected)
-                {
-                    MessageBox.Show("Not connected to server.", "Not Connected", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                    return;
-                }
-
-                var dialog = new Form
-                {
-                    Text = "Broadcast Command",
-                    Size = new Size(400, 250),
-                    StartPosition = FormStartPosition.CenterParent
-                };
-
-                var cmdBox = new TextBox { Location = new Point(10, 40), Size = new Size(360, 25), PlaceholderText = "Command" };
-                var payloadBox = new TextBox { Location = new Point(10, 90), Size = new Size(360, 60), Multiline = true, PlaceholderText = "Payload (JSON)", Text = "{}" };
-                var sendBtn = new Button { Text = "Broadcast", Location = new Point(150, 170), Size = new Size(100, 30), DialogResult = DialogResult.OK };
-                var cancelBtn = new Button { Text = "Cancel", Location = new Point(260, 170), Size = new Size(100, 30), DialogResult = DialogResult.Cancel };
-
-                dialog.Controls.Add(new Label { Text = "Command:", Location = new Point(10, 20), Size = new Size(100, 20) });
-                dialog.Controls.Add(cmdBox);
-                dialog.Controls.Add(new Label { Text = "Payload:", Location = new Point(10, 70), Size = new Size(100, 20) });
-                dialog.Controls.Add(payloadBox);
-                dialog.Controls.Add(sendBtn);
-                dialog.Controls.Add(cancelBtn);
-
-                if (dialog.ShowDialog() == DialogResult.OK && !string.IsNullOrEmpty(cmdBox.Text))
-                {
-                    object payload = null;
-                    if (!string.IsNullOrEmpty(payloadBox.Text) && payloadBox.Text != "{}")
-                    {
-                        try
-                        {
-                            payload = JsonSerializer.Deserialize<object>(payloadBox.Text);
-                        }
-                        catch { }
-                    }
-                    await _client.BroadcastToDevicesAsync(cmdBox.Text, payload);
-                    Logger.Info($"Broadcast command: {cmdBox.Text}");
-                }
-            };
-
-            // Device Messages Group
-            var groupMessages = new GroupBox
-            {
-                Text = "Messages from Other Devices",
-                Location = new Point(20, 460),
-                Size = new Size(520, 150),
-                Font = new Font("Segoe UI", 10F)
-            };
-
-            textDeviceMessages = new RichTextBox
-            {
-                Location = new Point(10, 25),
-                Size = new Size(500, 110),
-                BackColor = Color.Black,
-                ForeColor = Color.LightGreen,
-                ReadOnly = true,
-                Font = new Font("Consolas", 9F)
-            };
-
-            groupMessages.Controls.Add(textDeviceMessages);
-
-            // Add to form and adjust positions
-            Controls.Add(groupExtended);
-            Controls.Add(groupD2D);
-            Controls.Add(btnBroadcast);
-            Controls.Add(groupMessages);
-
-            // Move existing controls
-            groupBoxCapabilities.Location = new Point(20, 620);
-            textBoxLogs.Location = new Point(20, 780);
-            Height = 950;
+                labelDeviceId.Text = textBoxDeviceId.Text;
+            }
         }
 
-        private void AddDeviceMessage(string message, Color color)
+        private void btnUpdateStatus_Click(object sender, EventArgs e)
         {
-            if (InvokeRequired)
+            _client?.SetExtendedStatus(comboSubstatus.SelectedItem.ToString());
+            Logger.Info($"Extended status updated to: {comboSubstatus.SelectedItem}");
+        }
+
+        private async void btnSendToDevice_Click(object sender, EventArgs e)
+        {
+            if (_client.Status != YukiClient.ConnectionStatus.Connected)
             {
-                Invoke(new Action(() => AddDeviceMessage(message, color)));
+                MessageBox.Show("Not connected to server.", "Not Connected", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
 
-            textDeviceMessages.SelectionStart = textDeviceMessages.TextLength;
-            textDeviceMessages.SelectionLength = 0;
-            textDeviceMessages.SelectionColor = color;
-            textDeviceMessages.AppendText($"[{DateTime.Now:HH:mm:ss}] {message}\r\n");
-            textDeviceMessages.SelectionColor = textDeviceMessages.ForeColor;
-            textDeviceMessages.ScrollToCaret();
+            if (string.IsNullOrEmpty(textTargetDevice.Text))
+            {
+                MessageBox.Show("Enter target device ID.", "Missing Target", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            if (string.IsNullOrEmpty(textCustomCommand.Text))
+            {
+                MessageBox.Show("Enter command.", "Missing Command", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            object payload = null;
+            if (!string.IsNullOrEmpty(textPayload.Text) && textPayload.Text != "{}")
+            {
+                try
+                {
+                    payload = JsonSerializer.Deserialize<object>(textPayload.Text);
+                }
+                catch
+                {
+                    Logger.Error("Invalid JSON payload");
+                    MessageBox.Show("Invalid JSON payload.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    return;
+                }
+            }
+
+            await _client.SendToDeviceAsync(textTargetDevice.Text, textCustomCommand.Text, payload);
+            Logger.Info($"Sent to {textTargetDevice.Text}: {textCustomCommand.Text}");
+            Logger.Success($"→ {textTargetDevice.Text}: {textCustomCommand.Text}");
+        }
+
+        private async void btnBroadcast_Click(object sender, EventArgs e)
+        {
+            if (_client.Status != YukiClient.ConnectionStatus.Connected)
+            {
+                MessageBox.Show("Not connected to server.", "Not Connected", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            var dialog = new Form
+            {
+                Text = "Broadcast Command",
+                Size = new Size(400, 250),
+                StartPosition = FormStartPosition.CenterParent
+            };
+
+            var cmdBox = new TextBox { Location = new Point(10, 40), Size = new Size(360, 25), PlaceholderText = "Command" };
+            var payloadBox = new TextBox { Location = new Point(10, 90), Size = new Size(360, 60), Multiline = true, PlaceholderText = "Payload (JSON)", Text = "{}" };
+            var sendBtn = new Button { Text = "Broadcast", Location = new Point(150, 170), Size = new Size(100, 30), DialogResult = DialogResult.OK };
+            var cancelBtn = new Button { Text = "Cancel", Location = new Point(260, 170), Size = new Size(100, 30), DialogResult = DialogResult.Cancel };
+
+            dialog.Controls.Add(new Label { Text = "Command:", Location = new Point(10, 20), Size = new Size(100, 20) });
+            dialog.Controls.Add(cmdBox);
+            dialog.Controls.Add(new Label { Text = "Payload:", Location = new Point(10, 70), Size = new Size(100, 20) });
+            dialog.Controls.Add(payloadBox);
+            dialog.Controls.Add(sendBtn);
+            dialog.Controls.Add(cancelBtn);
+
+            if (dialog.ShowDialog() == DialogResult.OK && !string.IsNullOrEmpty(cmdBox.Text))
+            {
+                object payload = null;
+                if (!string.IsNullOrEmpty(payloadBox.Text) && payloadBox.Text != "{}")
+                {
+                    try
+                    {
+                        payload = JsonSerializer.Deserialize<object>(payloadBox.Text);
+                    }
+                    catch { }
+                }
+                await _client.BroadcastToDevicesAsync(cmdBox.Text, payload);
+                Logger.Info($"Broadcast command: {cmdBox.Text}");
+            }
         }
 
         private void InitializeClient()
@@ -372,7 +201,14 @@ namespace Yuki_PC
             };
             _client.OnDeviceCommand += (fromDevice, command, payload) =>
             {
-                AddDeviceMessage($"CMD from {fromDevice}: {command} -> {payload}", Color.Yellow);
+                if (InvokeRequired)
+                {
+                    Invoke(new Action(() => AddDeviceCommandToLog(fromDevice, command, payload)));
+                }
+                else
+                {
+                    AddDeviceCommandToLog(fromDevice, command, payload);
+                }
 
                 switch (command?.ToLowerInvariant())
                 {
@@ -391,8 +227,43 @@ namespace Yuki_PC
             };
             _client.OnDeviceBroadcast += (command, payload) =>
             {
-                AddDeviceMessage($"BROADCAST: {command} -> {payload}", Color.Cyan);
+                if (InvokeRequired)
+                {
+                    Invoke(new Action(() => Logger.Info($"[BROADCAST] {command}")));
+                }
+                else
+                {
+                    Logger.Info($"[BROADCAST] {command}");
+                }
             };
+        }
+
+        private void AddDeviceCommandToLog(string fromDevice, string command, object payload)
+        {
+            var rtb = textBoxLogs as RichTextBox;
+            if (rtb != null)
+            {
+                rtb.SelectionStart = rtb.TextLength;
+                rtb.SelectionLength = 0;
+                rtb.SelectionColor = Color.Cyan;
+                rtb.AppendText($"[{DateTime.Now:HH:mm:ss}] ");
+                rtb.SelectionColor = Color.Yellow;
+                rtb.AppendText($"[DEVICE→CMD] ");
+                rtb.SelectionColor = Color.LightGreen;
+                rtb.AppendText($"from {fromDevice}: {command}");
+                if (payload != null && payload.ToString() != "{}")
+                {
+                    rtb.SelectionColor = Color.Gray;
+                    rtb.AppendText($" {payload}");
+                }
+                rtb.AppendText(Environment.NewLine);
+                rtb.SelectionColor = rtb.ForeColor;
+                rtb.ScrollToCaret();
+            }
+            else
+            {
+                textBoxLogs.AppendText($"[{DateTime.Now:HH:mm:ss}] [DEVICE→CMD] from {fromDevice}: {command}\r\n");
+            }
         }
 
         private void InitializeCapabilitiesList()
@@ -706,41 +577,60 @@ namespace Yuki_PC
             base.OnFormClosing(e);
         }
 
+        private void UpdateFormLayout()
+        {
+            int currentY = btnToggleCapabilities.Bottom + 10;
+
+            // Extended Status Group
+            groupExtended.Location = new Point(20, currentY);
+            groupD2D.Location = new Point(290, currentY);
+            btnBroadcast.Location = new Point(560, currentY);
+
+            currentY += groupExtended.Height + 15;
+
+            // Capabilities Group
+            if (_capabilitiesVisible)
+            {
+                groupBoxCapabilities.Location = new Point(20, currentY);
+                groupBoxCapabilities.Visible = true;
+                currentY += groupBoxCapabilities.Height + 15;
+            }
+            else
+            {
+                groupBoxCapabilities.Visible = false;
+            }
+
+            // Logs
+            if (_logsVisible)
+            {
+                textBoxLogs.Location = new Point(20, currentY);
+                textBoxLogs.Visible = true;
+                currentY += textBoxLogs.Height + 15;
+            }
+            else
+            {
+                textBoxLogs.Visible = false;
+            }
+
+            // Resize form
+            int formHeight = currentY + 20;
+            if (formHeight < 500) formHeight = 500;
+            if (formHeight > 900) formHeight = 900;
+            this.ClientSize = new Size(660, formHeight);
+        }
+
         private void btnToggleCapabilities_Click(object sender, EventArgs e)
         {
             _capabilitiesVisible = !_capabilitiesVisible;
-            groupBoxCapabilities.Visible = _capabilitiesVisible;
             btnToggleCapabilities.Text = _capabilitiesVisible ? "Hide features" : "Show features";
-            UpdateFormHeight();
+            UpdateFormLayout();
         }
 
         private void btnToggleLogs_Click(object sender, EventArgs e)
         {
             _logsVisible = !_logsVisible;
-            textBoxLogs.Visible = _logsVisible;
             btnToggleLogs.Text = _logsVisible ? "Hide logs" : "Show logs";
-            UpdateFormHeight();
-        }
-
-        private void UpdateFormHeight()
-        {
-            int buttonsBottom = btnToggleCapabilities.Bottom;
-            int yPos = buttonsBottom + 10;
-
-            if (_capabilitiesVisible)
-            {
-                groupBoxCapabilities.Top = yPos;
-                yPos += groupBoxCapabilities.Height + 10;
-            }
-            if (_logsVisible)
-            {
-                textBoxLogs.Top = yPos;
-                yPos += textBoxLogs.Height + 10;
-            }
-
-            int totalHeight = yPos + 20;
-            if (totalHeight < buttonsBottom + 40) totalHeight = buttonsBottom + 40;
-            this.ClientSize = new Size(this.ClientSize.Width, totalHeight);
+            UpdateFormLayout();
         }
 
         private class AppSettings

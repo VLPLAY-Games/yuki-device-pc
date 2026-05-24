@@ -17,7 +17,6 @@ namespace Yuki_PC
 
         private void InitializeComponent()
         {
-            this.components = new System.ComponentModel.Container();
             this.groupBoxServer = new System.Windows.Forms.GroupBox();
             this.labelStatusText = new System.Windows.Forms.Label();
             this.labelStatusValue = new System.Windows.Forms.Label();
@@ -37,8 +36,29 @@ namespace Yuki_PC
             this.groupBoxCapabilities = new System.Windows.Forms.GroupBox();
             this.checkedListBoxCapabilities = new System.Windows.Forms.CheckedListBox();
             this.textBoxLogs = new System.Windows.Forms.RichTextBox();
+
+            // ========== НОВЫЕ КОНТРОЛЫ ==========
+            this.groupExtended = new System.Windows.Forms.GroupBox();
+            this.labelSub = new System.Windows.Forms.Label();
+            this.comboSubstatus = new System.Windows.Forms.ComboBox();
+            this.btnUpdateStatus = new System.Windows.Forms.Button();
+
+            this.groupD2D = new System.Windows.Forms.GroupBox();
+            this.labelTarget = new System.Windows.Forms.Label();
+            this.textTargetDevice = new System.Windows.Forms.TextBox();
+            this.labelCmd = new System.Windows.Forms.Label();
+            this.textCustomCommand = new System.Windows.Forms.TextBox();
+            this.labelPayload = new System.Windows.Forms.Label();
+            this.textPayload = new System.Windows.Forms.TextBox();
+            this.btnSendToDevice = new System.Windows.Forms.Button();
+
+            this.btnBroadcast = new System.Windows.Forms.Button();
+            // ===================================
+
             this.groupBoxServer.SuspendLayout();
             this.groupBoxCapabilities.SuspendLayout();
+            this.groupExtended.SuspendLayout();
+            this.groupD2D.SuspendLayout();
             this.SuspendLayout();
             // 
             // groupBoxServer
@@ -166,7 +186,7 @@ namespace Yuki_PC
             // btnToggleCapabilities
             // 
             this.btnToggleCapabilities.Font = new System.Drawing.Font("Microsoft Sans Serif", 10F);
-            this.btnToggleCapabilities.Location = new System.Drawing.Point(26, 276);
+            this.btnToggleCapabilities.Location = new System.Drawing.Point(20, 276);
             this.btnToggleCapabilities.Name = "btnToggleCapabilities";
             this.btnToggleCapabilities.Size = new System.Drawing.Size(128, 28);
             this.btnToggleCapabilities.TabIndex = 13;
@@ -176,7 +196,7 @@ namespace Yuki_PC
             // btnToggleLogs
             // 
             this.btnToggleLogs.Font = new System.Drawing.Font("Microsoft Sans Serif", 10F);
-            this.btnToggleLogs.Location = new System.Drawing.Point(160, 276);
+            this.btnToggleLogs.Location = new System.Drawing.Point(154, 276);
             this.btnToggleLogs.Name = "btnToggleLogs";
             this.btnToggleLogs.Size = new System.Drawing.Size(128, 28);
             this.btnToggleLogs.TabIndex = 14;
@@ -186,12 +206,97 @@ namespace Yuki_PC
             // buttonOpenLogs
             // 
             this.buttonOpenLogs.Font = new System.Drawing.Font("Microsoft Sans Serif", 10F);
-            this.buttonOpenLogs.Location = new System.Drawing.Point(294, 276);
+            this.buttonOpenLogs.Location = new System.Drawing.Point(288, 276);
             this.buttonOpenLogs.Name = "buttonOpenLogs";
             this.buttonOpenLogs.Size = new System.Drawing.Size(134, 28);
             this.buttonOpenLogs.TabIndex = 6;
             this.buttonOpenLogs.Text = "Open Logs Folder";
             this.buttonOpenLogs.Click += new System.EventHandler(this.buttonOpenLogs_Click);
+            // 
+            // ========== EXTENDED STATUS GROUP ==========
+            // 
+            this.groupExtended.Text = "Extended Status";
+            this.groupExtended.Size = new System.Drawing.Size(250, 100);
+            this.groupExtended.Font = new System.Drawing.Font("Segoe UI", 10F);
+            this.groupExtended.TabIndex = 15;
+            this.groupExtended.TabStop = false;
+            // 
+            this.labelSub.Text = "Substatus:";
+            this.labelSub.Location = new System.Drawing.Point(10, 30);
+            this.labelSub.Size = new System.Drawing.Size(70, 25);
+            // 
+            this.comboSubstatus.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
+            this.comboSubstatus.Location = new System.Drawing.Point(90, 28);
+            this.comboSubstatus.Size = new System.Drawing.Size(140, 25);
+            this.comboSubstatus.Items.AddRange(new object[] {
+                "idle", "working", "sleeping", "charging", "error", "updating", "maintenance"});
+            this.comboSubstatus.SelectedIndex = 0;
+            // 
+            this.btnUpdateStatus.Text = "Update";
+            this.btnUpdateStatus.Location = new System.Drawing.Point(90, 60);
+            this.btnUpdateStatus.Size = new System.Drawing.Size(80, 25);
+            this.btnUpdateStatus.Click += new System.EventHandler(this.btnUpdateStatus_Click);
+            // 
+            this.groupExtended.Controls.Add(this.labelSub);
+            this.groupExtended.Controls.Add(this.comboSubstatus);
+            this.groupExtended.Controls.Add(this.btnUpdateStatus);
+            // 
+            // ========== DEVICE TO DEVICE GROUP ==========
+            // 
+            this.groupD2D.Text = "Send to Device";
+            this.groupD2D.Size = new System.Drawing.Size(250, 170);
+            this.groupD2D.Font = new System.Drawing.Font("Segoe UI", 10F);
+            this.groupD2D.TabIndex = 16;
+            this.groupD2D.TabStop = false;
+            // 
+            this.labelTarget.Text = "Target Device:";
+            this.labelTarget.Location = new System.Drawing.Point(10, 30);
+            this.labelTarget.Size = new System.Drawing.Size(90, 25);
+            // 
+            this.textTargetDevice.Location = new System.Drawing.Point(110, 28);
+            this.textTargetDevice.Size = new System.Drawing.Size(120, 25);
+            this.textTargetDevice.PlaceholderText = "device-id";
+            // 
+            this.labelCmd.Text = "Command:";
+            this.labelCmd.Location = new System.Drawing.Point(10, 65);
+            this.labelCmd.Size = new System.Drawing.Size(70, 25);
+            // 
+            this.textCustomCommand.Location = new System.Drawing.Point(90, 63);
+            this.textCustomCommand.Size = new System.Drawing.Size(140, 25);
+            this.textCustomCommand.PlaceholderText = "command";
+            // 
+            this.labelPayload.Text = "Payload (JSON):";
+            this.labelPayload.Location = new System.Drawing.Point(10, 100);
+            this.labelPayload.Size = new System.Drawing.Size(90, 25);
+            // 
+            this.textPayload.Location = new System.Drawing.Point(110, 98);
+            this.textPayload.Size = new System.Drawing.Size(120, 25);
+            this.textPayload.PlaceholderText = "{}";
+            // 
+            this.btnSendToDevice.Text = "Send to Device";
+            this.btnSendToDevice.Location = new System.Drawing.Point(90, 135);
+            this.btnSendToDevice.Size = new System.Drawing.Size(100, 28);
+            this.btnSendToDevice.Enabled = false;
+            this.btnSendToDevice.Click += new System.EventHandler(this.btnSendToDevice_Click);
+            // 
+            this.groupD2D.Controls.Add(this.labelTarget);
+            this.groupD2D.Controls.Add(this.textTargetDevice);
+            this.groupD2D.Controls.Add(this.labelCmd);
+            this.groupD2D.Controls.Add(this.textCustomCommand);
+            this.groupD2D.Controls.Add(this.labelPayload);
+            this.groupD2D.Controls.Add(this.textPayload);
+            this.groupD2D.Controls.Add(this.btnSendToDevice);
+            // 
+            // ========== BROADCAST BUTTON ==========
+            // 
+            this.btnBroadcast.Text = "Broadcast";
+            this.btnBroadcast.Size = new System.Drawing.Size(80, 28);
+            this.btnBroadcast.Enabled = false;
+            this.btnBroadcast.BackColor = System.Drawing.Color.DarkOrange;
+            this.btnBroadcast.ForeColor = System.Drawing.Color.White;
+            this.btnBroadcast.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
+            this.btnBroadcast.TabIndex = 17;
+            this.btnBroadcast.Click += new System.EventHandler(this.btnBroadcast_Click);
             // 
             // groupBoxCapabilities
             // 
@@ -232,7 +337,10 @@ namespace Yuki_PC
             // 
             // Form1
             // 
-            this.ClientSize = new System.Drawing.Size(560, 680);
+            this.ClientSize = new System.Drawing.Size(580, 700);
+            this.Controls.Add(this.btnBroadcast);
+            this.Controls.Add(this.groupD2D);
+            this.Controls.Add(this.groupExtended);
             this.Controls.Add(this.btnToggleCapabilities);
             this.Controls.Add(this.btnToggleLogs);
             this.Controls.Add(this.groupBoxServer);
@@ -246,6 +354,9 @@ namespace Yuki_PC
             this.groupBoxServer.ResumeLayout(false);
             this.groupBoxServer.PerformLayout();
             this.groupBoxCapabilities.ResumeLayout(false);
+            this.groupExtended.ResumeLayout(false);
+            this.groupD2D.ResumeLayout(false);
+            this.groupD2D.PerformLayout();
             this.ResumeLayout(false);
         }
 
@@ -270,5 +381,22 @@ namespace Yuki_PC
         private System.Windows.Forms.RichTextBox textBoxLogs;
         private Button btnToggleCapabilities;
         private Button btnToggleLogs;
+
+        // Новые контролы
+        private GroupBox groupExtended;
+        private Label labelSub;
+        private ComboBox comboSubstatus;
+        private Button btnUpdateStatus;
+
+        private GroupBox groupD2D;
+        private Label labelTarget;
+        private TextBox textTargetDevice;
+        private Label labelCmd;
+        private TextBox textCustomCommand;
+        private Label labelPayload;
+        private TextBox textPayload;
+        private Button btnSendToDevice;
+
+        private Button btnBroadcast;
     }
 }
