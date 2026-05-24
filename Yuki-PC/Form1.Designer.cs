@@ -37,8 +37,6 @@ namespace Yuki_PC
             this.groupBoxCapabilities = new System.Windows.Forms.GroupBox();
             this.checkedListBoxCapabilities = new System.Windows.Forms.CheckedListBox();
             this.textBoxLogs = new System.Windows.Forms.RichTextBox();
-            this.trayMenu = new System.Windows.Forms.ContextMenuStrip(this.components);
-            this.trayIcon = new System.Windows.Forms.NotifyIcon(this.components);
             this.groupBoxServer.SuspendLayout();
             this.groupBoxCapabilities.SuspendLayout();
             this.SuspendLayout();
@@ -97,7 +95,6 @@ namespace Yuki_PC
             this.textBoxAddress.Size = new System.Drawing.Size(280, 25);
             this.textBoxAddress.TabIndex = 3;
             this.textBoxAddress.Text = "ws://localhost:8000";
-            this.textBoxAddress.TextChanged += new System.EventHandler(this.textBoxAddress_TextChanged);
             // 
             // buttonConnect
             // 
@@ -140,7 +137,6 @@ namespace Yuki_PC
             this.textBoxDeviceId.Name = "textBoxDeviceId";
             this.textBoxDeviceId.Size = new System.Drawing.Size(150, 25);
             this.textBoxDeviceId.TabIndex = 9;
-            this.textBoxDeviceId.TextChanged += new System.EventHandler(this.textBoxDeviceId_TextChanged);
             // 
             // labelAuthToken
             // 
@@ -169,29 +165,27 @@ namespace Yuki_PC
             // 
             // btnToggleCapabilities
             // 
-            this.btnToggleCapabilities.Font = new System.Drawing.Font("Microsoft Sans Serif", 10F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
+            this.btnToggleCapabilities.Font = new System.Drawing.Font("Microsoft Sans Serif", 10F);
             this.btnToggleCapabilities.Location = new System.Drawing.Point(26, 276);
             this.btnToggleCapabilities.Name = "btnToggleCapabilities";
             this.btnToggleCapabilities.Size = new System.Drawing.Size(128, 28);
             this.btnToggleCapabilities.TabIndex = 13;
             this.btnToggleCapabilities.Text = "Show features";
-            this.btnToggleCapabilities.UseVisualStyleBackColor = true;
             this.btnToggleCapabilities.Click += new System.EventHandler(this.btnToggleCapabilities_Click);
             // 
             // btnToggleLogs
             // 
-            this.btnToggleLogs.Font = new System.Drawing.Font("Microsoft Sans Serif", 10F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
+            this.btnToggleLogs.Font = new System.Drawing.Font("Microsoft Sans Serif", 10F);
             this.btnToggleLogs.Location = new System.Drawing.Point(160, 276);
             this.btnToggleLogs.Name = "btnToggleLogs";
             this.btnToggleLogs.Size = new System.Drawing.Size(128, 28);
             this.btnToggleLogs.TabIndex = 14;
             this.btnToggleLogs.Text = "Show logs";
-            this.btnToggleLogs.UseVisualStyleBackColor = true;
             this.btnToggleLogs.Click += new System.EventHandler(this.btnToggleLogs_Click);
             // 
             // buttonOpenLogs
             // 
-            this.buttonOpenLogs.Font = new System.Drawing.Font("Microsoft Sans Serif", 10F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
+            this.buttonOpenLogs.Font = new System.Drawing.Font("Microsoft Sans Serif", 10F);
             this.buttonOpenLogs.Location = new System.Drawing.Point(294, 276);
             this.buttonOpenLogs.Name = "buttonOpenLogs";
             this.buttonOpenLogs.Size = new System.Drawing.Size(134, 28);
@@ -213,7 +207,7 @@ namespace Yuki_PC
             // 
             // checkedListBoxCapabilities
             // 
-            this.checkedListBoxCapabilities.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(26)))), ((int)(((byte)(31)))), ((int)(((byte)(38)))));
+            this.checkedListBoxCapabilities.BackColor = System.Drawing.Color.FromArgb(26, 31, 38);
             this.checkedListBoxCapabilities.BorderStyle = System.Windows.Forms.BorderStyle.None;
             this.checkedListBoxCapabilities.CheckOnClick = true;
             this.checkedListBoxCapabilities.ForeColor = System.Drawing.Color.White;
@@ -236,16 +230,6 @@ namespace Yuki_PC
             this.textBoxLogs.Text = "";
             this.textBoxLogs.Visible = false;
             // 
-            // trayMenu
-            // 
-            this.trayMenu.Name = "contextMenuStrip1";
-            this.trayMenu.Size = new System.Drawing.Size(61, 4);
-            // 
-            // trayIcon
-            // 
-            this.trayIcon.Text = "Yuki PC";
-            this.trayIcon.Visible = true;
-            // 
             // Form1
             // 
             this.ClientSize = new System.Drawing.Size(560, 680);
@@ -263,7 +247,6 @@ namespace Yuki_PC
             this.groupBoxServer.PerformLayout();
             this.groupBoxCapabilities.ResumeLayout(false);
             this.ResumeLayout(false);
-
         }
 
         #endregion
@@ -285,8 +268,6 @@ namespace Yuki_PC
         private System.Windows.Forms.GroupBox groupBoxCapabilities;
         private System.Windows.Forms.CheckedListBox checkedListBoxCapabilities;
         private System.Windows.Forms.RichTextBox textBoxLogs;
-        private ContextMenuStrip trayMenu;
-        private NotifyIcon trayIcon;
         private Button btnToggleCapabilities;
         private Button btnToggleLogs;
     }

@@ -1,6 +1,6 @@
-﻿// YukiClient.cs
-using System;
+﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Net.WebSockets;
@@ -8,6 +8,7 @@ using System.Text;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.VisualBasic.Devices;
 
 namespace Yuki_PC
 {
@@ -18,11 +19,15 @@ namespace Yuki_PC
         private Task _receiveTask;
         private Task _heartbeatTask;
         private readonly SemaphoreSlim _sendLock = new SemaphoreSlim(1, 1);
+        private Timer _metricsTimer;
+        private Timer _statusTimer;
 
         private string _serverAddress;
         private string _sessionId;
         private int _heartbeatInterval = 30;
         private string[] _enabledCapabilities = Array.Empty<string>();
+        private string _currentSubstatus = "idle";
+        private Dictionary<string, object> _currentMetrics = new Dictionary<string, object>();
 
         // Reconnection fields
         private CancellationTokenSource _reconnectCts;
@@ -30,7 +35,7 @@ namespace Yuki_PC
         private bool _userInitiatedDisconnect;
         private bool _wasConnectedOnce;
         private bool _disposed;
-        private readonly int _reconnectBackoffBase = 3; // seconds
+        private readonly int _reconnectBackoffBase = 3;
 
         public string DeviceId { get; set; }
         public string AuthToken { get; set; }
@@ -50,6 +55,9 @@ namespace Yuki_PC
         public event Action<string, Logger.LogLevel> OnLog;
         public event Action<string> OnDeviceIdUpdated;
         public event Action<string> OnTokenUpdated;
+        public event Action<string, string, object> OnDeviceCommand;
+        public event Action<string, object> OnDeviceBroadcast;
+        public event Func<string, object, Task<object>> OnDeviceCommandAsync;
 
         public YukiClient()
         {
@@ -59,6 +67,98 @@ namespace Yuki_PC
         public void SetCapabilities(string[] capabilities)
         {
             _enabledCapabilities = capabilities ?? Array.Empty<string>();
+        }
+
+        public void SetExtendedStatus(string substatus, object details = null)
+        {
+            _currentSubstatus = substatus;
+            if (Status == ConnectionStatus.Connected && _webSocket.State == WebSocketState.Open)
+            {
+                _ = SendExtendedStatusAsync(substatus, details);
+            }
+        }
+
+        public void UpdateMetrics(Dictionary<string, object> metrics)
+        {
+            foreach (var kv in metrics)
+                _currentMetrics[kv.Key] = kv.Value;
+
+            if (Status == ConnectionStatus.Connected && _webSocket.State == WebSocketState.Open)
+            {
+                _ = SendMetricsAsync();
+            }
+        }
+
+        public async Task SendToDeviceAsync(string targetDeviceId, string command,
+            object payload = null, bool requireResponse = false)
+        {
+            if (Status != ConnectionStatus.Connected)
+            {
+                Log(Logger.LogLevel.WARN, "Cannot send to device: not connected");
+                return;
+            }
+
+            var msg = YukiProtocol.CreateDeviceToDeviceMessage(
+                DeviceId, targetDeviceId, command, payload, requireResponse);
+            await SendMessageAsync(msg, _cancellationTokenSource.Token, _webSocket);
+            Log(Logger.LogLevel.INFO, $"Sent command to {targetDeviceId}: {command}");
+        }
+
+        public async Task BroadcastToDevicesAsync(string command, object payload = null,
+            string[] deviceFilter = null)
+        {
+            if (Status != ConnectionStatus.Connected)
+            {
+                Log(Logger.LogLevel.WARN, "Cannot broadcast: not connected");
+                return;
+            }
+
+            var broadcastMsg = YukiProtocol.CreateDeviceBroadcastMessage(DeviceId, command, payload, deviceFilter);
+            await SendMessageAsync(broadcastMsg, _cancellationTokenSource.Token, _webSocket);
+            Log(Logger.LogLevel.INFO, $"Broadcast '{command}' to {(deviceFilter?.Length ?? 0)} devices");
+        }
+
+        public void StartMetricsReporting(int intervalSeconds = 60)
+        {
+            _metricsTimer?.Dispose();
+            _metricsTimer = new Timer(async _ =>
+            {
+                if (Status == ConnectionStatus.Connected && _webSocket.State == WebSocketState.Open)
+                {
+                    await CollectAndSendMetrics();
+                }
+            }, null, intervalSeconds * 1000, intervalSeconds * 1000);
+
+            Log(Logger.LogLevel.INFO, $"Metrics reporting started (interval: {intervalSeconds}s)");
+        }
+
+        public void StopMetricsReporting()
+        {
+            _metricsTimer?.Dispose();
+            _metricsTimer = null;
+            Log(Logger.LogLevel.INFO, "Metrics reporting stopped");
+        }
+
+        public void StartPeriodicStatus(int intervalSeconds = 30)
+        {
+            _statusTimer?.Dispose();
+            _statusTimer = new Timer(async _ =>
+            {
+                if (Status == ConnectionStatus.Connected && _webSocket.State == WebSocketState.Open)
+                {
+                    await SendStatusAsync("online", _cancellationTokenSource.Token, _webSocket);
+                    await SendExtendedStatusAsync(_currentSubstatus, null);
+                }
+            }, null, intervalSeconds * 1000, intervalSeconds * 1000);
+
+            Log(Logger.LogLevel.INFO, $"Periodic status started (interval: {intervalSeconds}s)");
+        }
+
+        public void StopPeriodicStatus()
+        {
+            _statusTimer?.Dispose();
+            _statusTimer = null;
+            Log(Logger.LogLevel.INFO, "Periodic status stopped");
         }
 
         public async Task ConnectAsync(string serverAddress)
@@ -94,7 +194,6 @@ namespace Yuki_PC
 
                     await SendHelloAsync(token, socket);
 
-                    // Добавляем таймаут на handshake (10 секунд)
                     _ = Task.Run(async () =>
                     {
                         await Task.Delay(10000);
@@ -114,42 +213,35 @@ namespace Yuki_PC
             }
         }
 
-
         public async Task DisconnectAsync(bool userInitiated = true)
         {
             _userInitiatedDisconnect = userInitiated;
             CancelReconnection();
+            StopMetricsReporting();
+            StopPeriodicStatus();
 
             try
             {
-                // Отменяем все операции
                 _cancellationTokenSource?.Cancel();
-
                 await WaitForConnectionTasksAsync();
 
-                // Принудительно закрываем WebSocket, даже если он в состоянии Connecting
                 if (_webSocket != null)
                 {
                     try
                     {
-                        // Если WebSocket все еще открывается или коннектится
                         if (_webSocket.State == WebSocketState.Connecting ||
                             _webSocket.State == WebSocketState.Open ||
                             _webSocket.State == WebSocketState.CloseReceived ||
                             _webSocket.State == WebSocketState.CloseSent)
                         {
-                            // Используем Abort для принудительного закрытия
                             _webSocket.Abort();
-                            Log(Logger.LogLevel.INFO, "WebSocket aborted");
                         }
-
                         _webSocket.Dispose();
                     }
                     catch (Exception ex)
                     {
                         Log(Logger.LogLevel.ERROR, $"Error during socket dispose: {ex.Message}");
                     }
-
                     _webSocket = new ClientWebSocket();
                 }
             }
@@ -167,29 +259,18 @@ namespace Yuki_PC
         public void ForceDisconnect()
         {
             Log(Logger.LogLevel.INFO, "Force disconnecting...");
-
             _userInitiatedDisconnect = true;
             CancelReconnection();
+            StopMetricsReporting();
+            StopPeriodicStatus();
 
             try
             {
                 _cancellationTokenSource?.Cancel();
-
                 if (_webSocket != null)
                 {
-                    try
-                    {
-                        // Принудительное закрытие любым способом
-                        _webSocket.Abort();
-                    }
-                    catch { }
-
-                    try
-                    {
-                        _webSocket.Dispose();
-                    }
-                    catch { }
-
+                    try { _webSocket.Abort(); } catch { }
+                    try { _webSocket.Dispose(); } catch { }
                     _webSocket = new ClientWebSocket();
                 }
             }
@@ -203,7 +284,6 @@ namespace Yuki_PC
             }
         }
 
-
         private async Task SendHelloAsync(CancellationToken token, ClientWebSocket socket)
         {
             var hello = YukiProtocol.CreateHelloMessage(DeviceId, "yuki-device-pc", _enabledCapabilities, AuthToken);
@@ -215,12 +295,90 @@ namespace Yuki_PC
         {
             var msg = YukiProtocol.CreateStatusMessage(DeviceId, status);
             await SendMessageAsync(msg, token, socket);
-            Log(Logger.LogLevel.DEBUG, $"Sent status: {status}");
         }
 
-        private static JsonElement CreateEmptyObject()
+        private async Task SendExtendedStatusAsync(string substatus, object details)
         {
-            return JsonSerializer.SerializeToElement(new { });
+            var msg = YukiProtocol.CreateExtendedStatusMessage(DeviceId,
+                Status == ConnectionStatus.Connected ? "online" : "offline",
+                substatus, details);
+            await SendMessageAsync(msg, _cancellationTokenSource.Token, _webSocket);
+            Log(Logger.LogLevel.DEBUG, $"Extended status sent: {substatus}");
+        }
+
+        private async Task SendMetricsAsync()
+        {
+            var metrics = new Dictionary<string, object>(_currentMetrics);
+            metrics["timestamp"] = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+
+            var msg = YukiProtocol.CreateMetricsMessage(DeviceId, metrics);
+            await SendMessageAsync(msg, _cancellationTokenSource.Token, _webSocket);
+            Log(Logger.LogLevel.DEBUG, $"Metrics sent: {_currentMetrics.Count} values");
+        }
+
+        private async Task CollectAndSendMetrics()
+        {
+            try
+            {
+                var metrics = new Dictionary<string, object>();
+
+                // CPU Usage
+                try
+                {
+                    var cpuCounter = new PerformanceCounter("Processor", "% Processor Time", "_Total");
+                    metrics["cpu"] = Math.Round(cpuCounter.NextValue(), 1);
+                    await Task.Delay(100);
+                    metrics["cpu"] = Math.Round(cpuCounter.NextValue(), 1);
+                    cpuCounter.Dispose();
+                }
+                catch (Exception ex)
+                {
+                    Log(Logger.LogLevel.DEBUG, $"CPU counter failed: {ex.Message}");
+                    metrics["cpu"] = 0;
+                }
+
+                // Memory
+                try
+                {
+                    var computerInfo = new ComputerInfo();
+                    var availableMemory = computerInfo.AvailablePhysicalMemory;
+                    var totalMemory = computerInfo.TotalPhysicalMemory;
+                    metrics["memory_percent"] = Math.Round((totalMemory - availableMemory) * 100.0 / totalMemory, 1);
+                    metrics["memory_used_gb"] = Math.Round((totalMemory - availableMemory) / 1024.0 / 1024.0 / 1024.0, 1);
+                    metrics["memory_total_gb"] = Math.Round(totalMemory / 1024.0 / 1024.0 / 1024.0, 1);
+                }
+                catch (Exception ex)
+                {
+                    Log(Logger.LogLevel.DEBUG, $"Memory collection failed: {ex.Message}");
+                }
+
+                // Disk
+                try
+                {
+                    var drive = new DriveInfo(Path.GetPathRoot(Environment.SystemDirectory));
+                    metrics["disk_percent"] = Math.Round((drive.TotalSize - drive.AvailableFreeSpace) * 100.0 / drive.TotalSize, 1);
+                    metrics["disk_used_gb"] = Math.Round((drive.TotalSize - drive.AvailableFreeSpace) / 1024.0 / 1024.0 / 1024.0, 1);
+                    metrics["disk_total_gb"] = Math.Round(drive.TotalSize / 1024.0 / 1024.0 / 1024.0, 1);
+                }
+                catch (Exception ex)
+                {
+                    Log(Logger.LogLevel.DEBUG, $"Disk collection failed: {ex.Message}");
+                }
+
+                // Uptime
+                metrics["uptime_seconds"] = (int)(DateTime.Now - Process.GetCurrentProcess().StartTime).TotalSeconds;
+
+                // System Info
+                metrics["os"] = Environment.OSVersion.ToString();
+                metrics["hostname"] = Environment.MachineName;
+                metrics["username"] = Environment.UserName;
+
+                UpdateMetrics(metrics);
+            }
+            catch (Exception ex)
+            {
+                Log(Logger.LogLevel.ERROR, $"Failed to collect metrics: {ex.Message}");
+            }
         }
 
         private async Task SendMessageAsync(YukiMessage msg, CancellationToken token, ClientWebSocket socket = null)
@@ -373,10 +531,7 @@ namespace Yuki_PC
                         _webSocket.Abort();
                     }
                 }
-                catch
-                {
-                    // ignore
-                }
+                catch { }
 
                 _webSocket?.Dispose();
                 _webSocket = new ClientWebSocket();
@@ -395,7 +550,6 @@ namespace Yuki_PC
                 UpdateStatus(ConnectionStatus.Handshaking);
 
                 _receiveTask = Task.Run(() => ReceiveLoopAsync(socket, token), token);
-
                 await SendHelloAsync(token, socket);
                 return true;
             }
@@ -419,7 +573,6 @@ namespace Yuki_PC
 
             if (_receiveTask != null)
                 tasks.Add(_receiveTask);
-
             if (_heartbeatTask != null)
                 tasks.Add(_heartbeatTask);
 
@@ -435,10 +588,7 @@ namespace Yuki_PC
                     try { await all; } catch { }
                 }
             }
-            catch
-            {
-                // ignore shutdown races
-            }
+            catch { }
             finally
             {
                 _receiveTask = null;
@@ -449,16 +599,9 @@ namespace Yuki_PC
         private static bool TryGetString(JsonElement element, string propertyName, out string value)
         {
             value = null;
-
-            if (element.ValueKind != JsonValueKind.Object)
-                return false;
-
-            if (!element.TryGetProperty(propertyName, out var prop))
-                return false;
-
-            if (prop.ValueKind == JsonValueKind.Null || prop.ValueKind == JsonValueKind.Undefined)
-                return false;
-
+            if (element.ValueKind != JsonValueKind.Object) return false;
+            if (!element.TryGetProperty(propertyName, out var prop)) return false;
+            if (prop.ValueKind == JsonValueKind.Null || prop.ValueKind == JsonValueKind.Undefined) return false;
             value = prop.ValueKind == JsonValueKind.String ? prop.GetString() : prop.ToString();
             return !string.IsNullOrEmpty(value);
         }
@@ -466,20 +609,10 @@ namespace Yuki_PC
         private static bool TryGetInt32(JsonElement element, string propertyName, out int value)
         {
             value = default;
-
-            if (element.ValueKind != JsonValueKind.Object)
-                return false;
-
-            if (!element.TryGetProperty(propertyName, out var prop))
-                return false;
-
-            if (prop.ValueKind == JsonValueKind.Number && prop.TryGetInt32(out value))
-                return true;
-
-            if (prop.ValueKind == JsonValueKind.String &&
-                int.TryParse(prop.GetString(), out value))
-                return true;
-
+            if (element.ValueKind != JsonValueKind.Object) return false;
+            if (!element.TryGetProperty(propertyName, out var prop)) return false;
+            if (prop.ValueKind == JsonValueKind.Number && prop.TryGetInt32(out value)) return true;
+            if (prop.ValueKind == JsonValueKind.String && int.TryParse(prop.GetString(), out value)) return true;
             return false;
         }
 
@@ -492,7 +625,6 @@ namespace Yuki_PC
             {
                 return payload;
             }
-
             return root;
         }
 
@@ -511,7 +643,6 @@ namespace Yuki_PC
                 }
 
                 var hasId = TryGetString(root, "id", out var msgId);
-
                 Log(Logger.LogLevel.DEBUG, $"Received: type={type}, id={(hasId ? msgId : "n/a")}");
 
                 switch (type)
@@ -519,14 +650,13 @@ namespace Yuki_PC
                     case "welcome":
                         if (TryGetString(body, "session_id", out var sid))
                             _sessionId = sid;
-
                         if (TryGetInt32(body, "heartbeat_interval", out var interval))
                             _heartbeatInterval = interval;
-
                         Log(Logger.LogLevel.SUCCESS, $"Welcome received. Heartbeat: {_heartbeatInterval}s");
                         _wasConnectedOnce = true;
                         UpdateStatus(ConnectionStatus.Connected);
                         await SendStatusAsync("online", token, socket);
+                        await SendExtendedStatusAsync(_currentSubstatus, null);
                         StartHeartbeat(socket, token);
                         break;
 
@@ -534,103 +664,51 @@ namespace Yuki_PC
                         await HandleCommandAsync(root, body, msgId, token, socket);
                         break;
 
+                    case "device_command":
+                        await HandleDeviceCommandAsync(root, body, msgId, token, socket);
+                        break;
+
+                    case "device_broadcast":
+                        await HandleDeviceBroadcastAsync(root, body, token, socket);
+                        break;
+
+                    case "device_response":
+                        HandleDeviceResponse(root, body);
+                        break;
+
                     case "ping":
+                        var pong = new YukiMessage
                         {
-                            var pong = new YukiMessage
-                            {
-                                Type = "pong",
-                                Id = msgId ?? Guid.NewGuid().ToString(),
-                                Payload = CreateEmptyObject()
-                            };
-                            await SendMessageAsync(pong, token, socket);
-                            break;
-                        }
+                            Type = "pong",
+                            Id = msgId ?? Guid.NewGuid().ToString(),
+                            Payload = JsonDocument.Parse("{}").RootElement
+                        };
+                        await SendMessageAsync(pong, token, socket);
+                        break;
 
                     case "token_update":
+                        string newToken = null;
+                        if (TryGetString(body, "new_token", out var tokenValue))
+                            newToken = tokenValue;
+                        if (!string.IsNullOrEmpty(newToken))
                         {
-                            string newToken = null;
-                            string reason = "unknown";
-
-                            if (TryGetString(body, "new_token", out var tokenValue))
-                                newToken = tokenValue;
-
-                            if (TryGetString(body, "reason", out var reasonValue))
-                                reason = reasonValue;
-
-                            if (!string.IsNullOrEmpty(newToken))
-                            {
-                                AuthToken = newToken;
-                                Log(Logger.LogLevel.SUCCESS, $"Token updated by server. Reason: {reason}");
-                                OnTokenUpdated?.Invoke(newToken);
-                            }
-                            break;
+                            AuthToken = newToken;
+                            Log(Logger.LogLevel.SUCCESS, $"Token updated by server");
+                            OnTokenUpdated?.Invoke(newToken);
                         }
+                        break;
 
                     case "disconnect":
+                        Log(Logger.LogLevel.INFO, "Server requested disconnect");
+                        _userInitiatedDisconnect = true;
+                        _wasConnectedOnce = false;
+                        UpdateStatus(ConnectionStatus.Disconnected);
+                        try { _cancellationTokenSource?.Cancel(); } catch { }
+                        if (socket.State == WebSocketState.Open || socket.State == WebSocketState.CloseReceived || socket.State == WebSocketState.CloseSent)
                         {
-                            string reason = "unknown";
-                            if (TryGetString(body, "reason", out var reasonValue))
-                                reason = reasonValue;
-
-                            Log(Logger.LogLevel.INFO, $"Server requested disconnect. Reason: {reason}");
-
-                            _userInitiatedDisconnect = true;
-                            _wasConnectedOnce = false;
-
-                            // Сразу обновляем UI, чтобы статус не зависал на Connected
-                            UpdateStatus(ConnectionStatus.Disconnected);
-
-                            try
-                            {
-                                _cancellationTokenSource?.Cancel();
-                            }
-                            catch { }
-
-                            if (socket.State == WebSocketState.Open ||
-                                socket.State == WebSocketState.CloseReceived ||
-                                socket.State == WebSocketState.CloseSent)
-                            {
-                                try
-                                {
-                                    await socket.CloseAsync(
-                                        WebSocketCloseStatus.NormalClosure,
-                                        "Disconnect by admin",
-                                        CancellationToken.None);
-                                }
-                                catch (Exception ex)
-                                {
-                                    Log(Logger.LogLevel.ERROR, $"Error during disconnect close: {ex.Message}");
-                                }
-                            }
-                            break;
+                            try { await socket.CloseAsync(WebSocketCloseStatus.NormalClosure, "Disconnect by admin", CancellationToken.None); } catch { }
                         }
-
-                    case "reconnect":
-                        {
-                            Log(Logger.LogLevel.INFO, "Server requested reconnect");
-
-                            _userInitiatedDisconnect = false;
-                            UpdateStatus(ConnectionStatus.Reconnecting);
-
-                            if (socket.State == WebSocketState.Open ||
-                                socket.State == WebSocketState.CloseReceived ||
-                                socket.State == WebSocketState.CloseSent)
-                            {
-                                try
-                                {
-                                    await socket.CloseAsync(
-                                        WebSocketCloseStatus.NormalClosure,
-                                        "Reconnect requested",
-                                        CancellationToken.None);
-                                }
-                                catch (Exception ex)
-                                {
-                                    Log(Logger.LogLevel.ERROR, $"Error during reconnect close: {ex.Message}");
-                                }
-                            }
-                            break;
-                        }
-
+                        break;
 
                     default:
                         Log(Logger.LogLevel.WARN, $"Unhandled message type: {type}");
@@ -645,6 +723,131 @@ namespace Yuki_PC
             {
                 Log(Logger.LogLevel.ERROR, $"Message processing error: {ex.Message}");
             }
+        }
+
+        private async Task HandleDeviceCommandAsync(JsonElement root, JsonElement body,
+            string msgId, CancellationToken token, ClientWebSocket socket)
+        {
+            string fromDeviceId = null;
+            string command = null;
+            JsonElement payload = default;
+            bool requireResponse = false;
+
+            if (TryGetString(body, "from_device_id", out var fromId))
+                fromDeviceId = fromId;
+            if (TryGetString(body, "command", out var cmd))
+                command = cmd;
+            if (body.TryGetProperty("payload", out var payProp))
+                payload = payProp;
+            if (body.TryGetProperty("require_response", out var respProp) && respProp.ValueKind == JsonValueKind.True)
+                requireResponse = true;
+
+            Log(Logger.LogLevel.INFO, $"Device command from {fromDeviceId}: {command}");
+
+            object result = null;
+            bool success = true;
+            string error = null;
+
+            if (OnDeviceCommandAsync != null)
+            {
+                try
+                {
+                    result = await OnDeviceCommandAsync(command, payload);
+                }
+                catch (Exception ex)
+                {
+                    success = false;
+                    error = ex.Message;
+                }
+            }
+            else if (OnDeviceCommand != null)
+            {
+                OnDeviceCommand?.Invoke(fromDeviceId, command, payload);  // ✅ 3 аргумента: fromDeviceId, command, payload
+            }
+            else
+            {
+                success = false;
+                error = "No command handler registered";
+            }
+
+            if (requireResponse)
+            {
+                var responseMsg = YukiProtocol.CreateDeviceResponseMessage(
+                    msgId, DeviceId, fromDeviceId, success, result, error);
+                await SendMessageAsync(responseMsg, token, socket);
+            }
+        }
+
+        private async Task HandleDeviceBroadcastAsync(JsonElement root, JsonElement body,
+            CancellationToken token, ClientWebSocket socket)
+        {
+            string fromDeviceId = null;
+            string command = null;
+            JsonElement payload = default;
+
+            if (TryGetString(body, "from_device_id", out var fromId))
+                fromDeviceId = fromId;
+            if (TryGetString(body, "command", out var cmd))
+                command = cmd;
+            if (body.TryGetProperty("payload", out var payProp))
+                payload = payProp;
+
+            Log(Logger.LogLevel.INFO, $"Device broadcast from {fromDeviceId}: {command}");
+            OnDeviceBroadcast?.Invoke(command, payload);
+        }
+
+        private void HandleDeviceResponse(JsonElement root, JsonElement body)
+        {
+            bool success = false;
+            string error = null;
+
+            if (body.TryGetProperty("success", out var succProp))
+                success = succProp.ValueKind == JsonValueKind.True;
+            if (body.TryGetProperty("error", out var errProp))
+                error = errProp.GetString();
+
+            Log(Logger.LogLevel.INFO, $"Device response received: success={success}, error={error}");
+        }
+
+        private async Task HandleCommandAsync(JsonElement root, JsonElement body, string msgId, CancellationToken token, ClientWebSocket socket)
+        {
+            string command = null;
+            JsonElement payload = default;
+
+            if (TryGetString(body, "command", out var cmd))
+                command = cmd;
+
+            if (body.ValueKind == JsonValueKind.Object &&
+                body.TryGetProperty("params", out var paramsProp) &&
+                paramsProp.ValueKind != JsonValueKind.Null)
+            {
+                payload = paramsProp;
+            }
+            else
+            {
+                payload = JsonDocument.Parse("{}").RootElement;
+            }
+
+            Log(Logger.LogLevel.INFO, $"Command received: {command}");
+
+            if (string.IsNullOrWhiteSpace(command))
+            {
+                var errorRes = YukiProtocol.CreateCommandResultMessage(msgId, false, null, "Missing command name");
+                await SendMessageAsync(errorRes, token, socket);
+                return;
+            }
+
+            if (!_enabledCapabilities.Contains(command, StringComparer.OrdinalIgnoreCase))
+            {
+                Log(Logger.LogLevel.WARN, $"Command '{command}' is disabled");
+                var errorRes = YukiProtocol.CreateCommandResultMessage(msgId, false, null, "Command disabled by user");
+                await SendMessageAsync(errorRes, token, socket);
+                return;
+            }
+
+            var (success, result, error) = await CommandHandler.ExecuteAsync(command, payload);
+            var resMsg = YukiProtocol.CreateCommandResultMessage(msgId, success, result, error);
+            await SendMessageAsync(resMsg, token, socket);
         }
 
         private void StartHeartbeat(ClientWebSocket socket, CancellationToken token)
@@ -665,64 +868,16 @@ namespace Yuki_PC
                                 {
                                     Type = "ping",
                                     Id = Guid.NewGuid().ToString(),
-                                    Payload = CreateEmptyObject()
+                                    Payload = JsonDocument.Parse("{}").RootElement
                                 };
-
                                 await SendMessageAsync(ping, token, socket);
                             }
-                            catch
-                            {
-                                break;
-                            }
+                            catch { break; }
                         }
                     }
                 }
-                catch (OperationCanceledException)
-                {
-                }
+                catch (OperationCanceledException) { }
             }, token);
-        }
-
-        private async Task HandleCommandAsync(JsonElement root, JsonElement body, string msgId, CancellationToken token, ClientWebSocket socket)
-        {
-            string command = null;
-            JsonElement payload = default;
-
-            if (TryGetString(body, "command", out var cmd))
-                command = cmd;
-
-            if (body.ValueKind == JsonValueKind.Object &&
-                body.TryGetProperty("params", out var paramsProp) &&
-                paramsProp.ValueKind != JsonValueKind.Null &&
-                paramsProp.ValueKind != JsonValueKind.Undefined)
-            {
-                payload = paramsProp;
-            }
-            else
-            {
-                payload = CreateEmptyObject();
-            }
-
-            Log(Logger.LogLevel.INFO, $"Command received: {command}");
-
-            if (string.IsNullOrWhiteSpace(command))
-            {
-                var errorRes = YukiProtocol.CreateCommandResultMessage(msgId, false, null, "Missing command name");
-                await SendMessageAsync(errorRes, token, socket);
-                return;
-            }
-
-            if (!_enabledCapabilities.Contains(command, StringComparer.OrdinalIgnoreCase))
-            {
-                Log(Logger.LogLevel.WARN, $"Command '{command}' is disabled in client settings");
-                var errorRes = YukiProtocol.CreateCommandResultMessage(msgId, false, null, "Command disabled by user");
-                await SendMessageAsync(errorRes, token, socket);
-                return;
-            }
-
-            var (success, result, error) = await CommandHandler.ExecuteAsync(command, payload);
-            var resMsg = YukiProtocol.CreateCommandResultMessage(msgId, success, result, error);
-            await SendMessageAsync(resMsg, token, socket);
         }
 
         private void UpdateStatus(ConnectionStatus newStatus)
@@ -751,30 +906,13 @@ namespace Yuki_PC
         {
             _disposed = true;
             CancelReconnection();
+            StopMetricsReporting();
+            StopPeriodicStatus();
 
-            try
-            {
-                _cancellationTokenSource?.Cancel();
-            }
-            catch { }
-
-            try
-            {
-                _sendLock.Dispose();
-            }
-            catch { }
-
-            try
-            {
-                _webSocket?.Dispose();
-            }
-            catch { }
-
-            try
-            {
-                _heartbeatTask?.Dispose();
-            }
-            catch { }
+            try { _cancellationTokenSource?.Cancel(); } catch { }
+            try { _sendLock.Dispose(); } catch { }
+            try { _webSocket?.Dispose(); } catch { }
+            try { _heartbeatTask?.Dispose(); } catch { }
         }
     }
 }

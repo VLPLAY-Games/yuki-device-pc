@@ -8,7 +8,7 @@ namespace Yuki_PC
     public class YukiMessage
     {
         [JsonPropertyName("protocol")]
-        public string Protocol { get; set; } = "yuki/1.0";
+        public string Protocol { get; set; } = "yuki/1.1";
 
         [JsonPropertyName("type")]
         public string Type { get; set; }
@@ -71,6 +71,114 @@ namespace Yuki_PC
                 Type = "command_result",
                 Id = originalId,
                 Payload = JsonDocument.Parse(JsonSerializer.Serialize(payload)).RootElement
+            };
+        }
+
+        // ==================== НОВЫЕ МЕТОДЫ ====================
+
+        public static YukiMessage CreateExtendedStatusMessage(string deviceId, string status,
+            string substatus = null, object details = null)
+        {
+            var payloadObj = new Dictionary<string, object>
+            {
+                ["device_id"] = deviceId,
+                ["status"] = status
+            };
+
+            if (!string.IsNullOrEmpty(substatus))
+                payloadObj["substatus"] = substatus;
+
+            if (details != null)
+                payloadObj["details"] = details;
+
+            string json = JsonSerializer.Serialize(payloadObj);
+            return new YukiMessage
+            {
+                Type = "extended_status",
+                Id = Guid.NewGuid().ToString(),
+                Payload = JsonDocument.Parse(json).RootElement
+            };
+        }
+
+        public static YukiMessage CreateMetricsMessage(string deviceId, object metrics)
+        {
+            var payloadObj = new Dictionary<string, object>
+            {
+                ["device_id"] = deviceId,
+                ["metrics"] = metrics,
+                ["timestamp"] = DateTimeOffset.UtcNow.ToUnixTimeSeconds()
+            };
+
+            string json = JsonSerializer.Serialize(payloadObj);
+            return new YukiMessage
+            {
+                Type = "metrics",
+                Id = Guid.NewGuid().ToString(),
+                Payload = JsonDocument.Parse(json).RootElement
+            };
+        }
+
+        public static YukiMessage CreateDeviceToDeviceMessage(string fromDeviceId, string toDeviceId,
+            string command, object payload = null, bool requireResponse = false)
+        {
+            var payloadObj = new Dictionary<string, object>
+            {
+                ["from_device_id"] = fromDeviceId,
+                ["to_device_id"] = toDeviceId,
+                ["command"] = command,
+                ["payload"] = payload ?? new { },
+                ["require_response"] = requireResponse,
+                ["sent_at"] = DateTimeOffset.UtcNow.ToUnixTimeSeconds()
+            };
+
+            string json = JsonSerializer.Serialize(payloadObj);
+            return new YukiMessage
+            {
+                Type = "device_to_device",
+                Id = Guid.NewGuid().ToString(),
+                Payload = JsonDocument.Parse(json).RootElement
+            };
+        }
+
+        public static YukiMessage CreateDeviceResponseMessage(string originalId, string fromDeviceId,
+            string toDeviceId, bool success, object result = null, string error = null)
+        {
+            var payloadObj = new Dictionary<string, object>
+            {
+                ["from_device_id"] = fromDeviceId,
+                ["to_device_id"] = toDeviceId,
+                ["success"] = success,
+                ["result"] = result,
+                ["error"] = error
+            };
+
+            string json = JsonSerializer.Serialize(payloadObj);
+            return new YukiMessage
+            {
+                Type = "device_response",
+                Id = originalId,
+                Payload = JsonDocument.Parse(json).RootElement
+            };
+        }
+
+        public static YukiMessage CreateDeviceBroadcastMessage(string fromDeviceId, string command,
+            object payload = null, string[] deviceFilter = null)
+        {
+            var payloadObj = new Dictionary<string, object>
+            {
+                ["from_device_id"] = fromDeviceId,
+                ["command"] = command,
+                ["payload"] = payload ?? new { },
+                ["device_filter"] = deviceFilter,
+                ["sent_at"] = DateTimeOffset.UtcNow.ToUnixTimeSeconds()
+            };
+
+            string json = JsonSerializer.Serialize(payloadObj);
+            return new YukiMessage
+            {
+                Type = "device_broadcast",
+                Id = Guid.NewGuid().ToString(),
+                Payload = JsonDocument.Parse(json).RootElement
             };
         }
     }
