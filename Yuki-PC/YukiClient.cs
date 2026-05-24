@@ -147,7 +147,8 @@ namespace Yuki_PC
                 if (Status == ConnectionStatus.Connected && _webSocket.State == WebSocketState.Open)
                 {
                     await SendStatusAsync("online", _cancellationTokenSource.Token, _webSocket);
-                    await SendExtendedStatusAsync(_currentSubstatus, null);
+                    // Убираем extended status отсюда
+                    // await SendExtendedStatusAsync(_currentSubstatus, null);
                 }
             }, null, intervalSeconds * 1000, intervalSeconds * 1000);
 
@@ -299,9 +300,8 @@ namespace Yuki_PC
 
         private async Task SendExtendedStatusAsync(string substatus, object details)
         {
-            var msg = YukiProtocol.CreateExtendedStatusMessage(DeviceId,
-                Status == ConnectionStatus.Connected ? "online" : "offline",
-                substatus, details);
+            // Убираем status из сообщения, так как он уже известен ядру
+            var msg = YukiProtocol.CreateExtendedStatusMessage(DeviceId, null, substatus, details);
             await SendMessageAsync(msg, _cancellationTokenSource.Token, _webSocket);
             Log(Logger.LogLevel.DEBUG, $"Extended status sent: {substatus}");
         }
@@ -311,6 +311,7 @@ namespace Yuki_PC
             var metrics = new Dictionary<string, object>(_currentMetrics);
             metrics["timestamp"] = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
 
+            // Убираем статус из метрик
             var msg = YukiProtocol.CreateMetricsMessage(DeviceId, metrics);
             await SendMessageAsync(msg, _cancellationTokenSource.Token, _webSocket);
             Log(Logger.LogLevel.DEBUG, $"Metrics sent: {_currentMetrics.Count} values");

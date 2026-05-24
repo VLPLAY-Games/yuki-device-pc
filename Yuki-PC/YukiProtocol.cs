@@ -76,14 +76,17 @@ namespace Yuki_PC
 
         // ==================== НОВЫЕ МЕТОДЫ ====================
 
-        public static YukiMessage CreateExtendedStatusMessage(string deviceId, string status,
+        public static YukiMessage CreateExtendedStatusMessage(string deviceId, string status = null,
             string substatus = null, object details = null)
         {
             var payloadObj = new Dictionary<string, object>
             {
-                ["device_id"] = deviceId,
-                ["status"] = status
+                ["device_id"] = deviceId
             };
+
+            // Добавляем status только если он передан
+            if (!string.IsNullOrEmpty(status))
+                payloadObj["status"] = status;
 
             if (!string.IsNullOrEmpty(substatus))
                 payloadObj["substatus"] = substatus;

@@ -4,6 +4,7 @@ using System.Drawing;
 using System.IO;
 using System.Linq;
 using System.Text.Json;
+using System.Threading.Tasks;
 using System.Windows.Forms;
 
 namespace Yuki_PC
@@ -310,6 +311,9 @@ namespace Yuki_PC
                     buttonConnect.Enabled = true;
                     buttonOpenPanel.Enabled = false;
                     btnSendToDevice.Enabled = false;
+                    // Останавливаем отправку метрик при отключении
+                    _client?.StopMetricsReporting();
+                    _client?.StopPeriodicStatus();
                     break;
                 case YukiClient.ConnectionStatus.Connecting:
                     labelStatusValue.Text = "Connecting...";
@@ -325,8 +329,21 @@ namespace Yuki_PC
                     buttonOpenPanel.Enabled = true;
                     btnSendToDevice.Enabled = true;
                     _isUserDisconnect = false;
-                    _client.StartMetricsReporting(60);
-                    _client.StartPeriodicStatus(30);
+
+                    // Запускаем отправку метрик и статуса с небольшой задержкой после подключения
+                    // Используем Task.Delay чтобы дать время WebSocket стабилизироваться
+                    Task.Run(async () =>
+                    {
+                        await Task.Delay(1000); // Ждем 1 секунду после подключения
+                        if (_client.Status == YukiClient.ConnectionStatus.Connected)
+                        {
+                            _client.StartMetricsReporting(60);
+                            _client.StartPeriodicStatus(30);
+
+                            // Отправляем первый extended status сразу
+                            _client.SetExtendedStatus(comboSubstatus.SelectedItem.ToString());
+                        }
+                    });
                     break;
                 case YukiClient.ConnectionStatus.Handshaking:
                     labelStatusValue.Text = "Handshaking...";
