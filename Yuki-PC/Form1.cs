@@ -126,49 +126,6 @@ namespace Yuki_PC
             Logger.Success($"→ {textTargetDevice.Text}: {textCustomCommand.Text}");
         }
 
-        private async void btnBroadcast_Click(object sender, EventArgs e)
-        {
-            if (_client.Status != YukiClient.ConnectionStatus.Connected)
-            {
-                MessageBox.Show("Not connected to server.", "Not Connected", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                return;
-            }
-
-            var dialog = new Form
-            {
-                Text = "Broadcast Command",
-                Size = new Size(400, 250),
-                StartPosition = FormStartPosition.CenterParent
-            };
-
-            var cmdBox = new TextBox { Location = new Point(10, 40), Size = new Size(360, 25), PlaceholderText = "Command" };
-            var payloadBox = new TextBox { Location = new Point(10, 90), Size = new Size(360, 60), Multiline = true, PlaceholderText = "Payload (JSON)", Text = "{}" };
-            var sendBtn = new Button { Text = "Broadcast", Location = new Point(150, 170), Size = new Size(100, 30), DialogResult = DialogResult.OK };
-            var cancelBtn = new Button { Text = "Cancel", Location = new Point(260, 170), Size = new Size(100, 30), DialogResult = DialogResult.Cancel };
-
-            dialog.Controls.Add(new Label { Text = "Command:", Location = new Point(10, 20), Size = new Size(100, 20) });
-            dialog.Controls.Add(cmdBox);
-            dialog.Controls.Add(new Label { Text = "Payload:", Location = new Point(10, 70), Size = new Size(100, 20) });
-            dialog.Controls.Add(payloadBox);
-            dialog.Controls.Add(sendBtn);
-            dialog.Controls.Add(cancelBtn);
-
-            if (dialog.ShowDialog() == DialogResult.OK && !string.IsNullOrEmpty(cmdBox.Text))
-            {
-                object payload = null;
-                if (!string.IsNullOrEmpty(payloadBox.Text) && payloadBox.Text != "{}")
-                {
-                    try
-                    {
-                        payload = JsonSerializer.Deserialize<object>(payloadBox.Text);
-                    }
-                    catch { }
-                }
-                await _client.BroadcastToDevicesAsync(cmdBox.Text, payload);
-                Logger.Info($"Broadcast command: {cmdBox.Text}");
-            }
-        }
-
         private void InitializeClient()
         {
             _client = new YukiClient();
@@ -353,14 +310,12 @@ namespace Yuki_PC
                     buttonConnect.Enabled = true;
                     buttonOpenPanel.Enabled = false;
                     btnSendToDevice.Enabled = false;
-                    btnBroadcast.Enabled = false;
                     break;
                 case YukiClient.ConnectionStatus.Connecting:
                     labelStatusValue.Text = "Connecting...";
                     labelStatusValue.ForeColor = Color.Yellow;
                     buttonConnect.Enabled = false;
                     btnSendToDevice.Enabled = false;
-                    btnBroadcast.Enabled = false;
                     break;
                 case YukiClient.ConnectionStatus.Connected:
                     labelStatusValue.Text = "Connected";
@@ -369,7 +324,6 @@ namespace Yuki_PC
                     buttonConnect.Enabled = true;
                     buttonOpenPanel.Enabled = true;
                     btnSendToDevice.Enabled = true;
-                    btnBroadcast.Enabled = true;
                     _isUserDisconnect = false;
                     _client.StartMetricsReporting(60);
                     _client.StartPeriodicStatus(30);
@@ -384,7 +338,6 @@ namespace Yuki_PC
                     buttonConnect.Text = "Disconnect";
                     buttonConnect.Enabled = true;
                     btnSendToDevice.Enabled = false;
-                    btnBroadcast.Enabled = false;
                     break;
             }
         }
@@ -579,31 +532,38 @@ namespace Yuki_PC
 
         private void UpdateFormLayout()
         {
-            int currentY = btnToggleCapabilities.Bottom + 10;
+            // Сначала сбрасываем позиции всех элементов в значение из дизайнера
+            // (они будут переопределены ниже, но это нужно для правильного расчета)
 
-            // Extended Status Group
+            // Рассчитываем Y позицию для Extended Status (под кнопками)
+            int currentY = btnToggleCapabilities.Bottom + 15;
+
+            // Если кнопки не видны или что-то пошло не так, используем значение из дизайнера
+            if (currentY < 300) currentY = 315;
+
+            // Extended Status Group и Send to Device - в ряд
             groupExtended.Location = new Point(20, currentY);
             groupD2D.Location = new Point(290, currentY);
-            btnBroadcast.Location = new Point(560, currentY);
 
             currentY += groupExtended.Height + 15;
 
             // Capabilities Group
             if (_capabilitiesVisible)
             {
-                groupBoxCapabilities.Location = new Point(20, currentY);
+                groupBoxCapabilities.Location = new Point(20, currentY + 60);
                 groupBoxCapabilities.Visible = true;
                 currentY += groupBoxCapabilities.Height + 15;
             }
             else
             {
                 groupBoxCapabilities.Visible = false;
+                // Даже если не виден, его позиция не нужна
             }
 
             // Logs
             if (_logsVisible)
             {
-                textBoxLogs.Location = new Point(20, currentY);
+                textBoxLogs.Location = new Point(20, currentY + 60);
                 textBoxLogs.Visible = true;
                 currentY += textBoxLogs.Height + 15;
             }
@@ -613,10 +573,13 @@ namespace Yuki_PC
             }
 
             // Resize form
-            int formHeight = currentY + 20;
-            if (formHeight < 500) formHeight = 500;
-            if (formHeight > 900) formHeight = 900;
-            this.ClientSize = new Size(660, formHeight);
+            int formHeight = currentY + 60;
+            if (formHeight < 600) formHeight = 600;
+            if (formHeight > 1000) formHeight = 1000;
+            this.ClientSize = new Size(580, formHeight);
+
+            // Принудительно обновляем форму
+            this.Refresh();
         }
 
         private void btnToggleCapabilities_Click(object sender, EventArgs e)
