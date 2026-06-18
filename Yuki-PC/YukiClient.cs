@@ -301,7 +301,44 @@ namespace Yuki_PC
         private async Task SendExtendedStatusAsync(string substatus, object details)
         {
             // Убираем status из сообщения, так как он уже известен ядру
-            var msg = YukiProtocol.CreateExtendedStatusMessage(DeviceId, null, substatus, details);
+            Dictionary<string, object> detailsDict = null;
+
+            if (details != null)
+            {
+                // Если details уже Dictionary<string, object> - используем как есть
+                if (details is Dictionary<string, object> dict)
+                {
+                    detailsDict = dict;
+                }
+                // Если details - строка, пытаемся распарсить как JSON
+                else if (details is string strDetails && !string.IsNullOrEmpty(strDetails))
+                {
+                    try
+                    {
+                        detailsDict = JsonSerializer.Deserialize<Dictionary<string, object>>(strDetails);
+                    }
+                    catch
+                    {
+                        // Если не JSON, создаем словарь с одним полем
+                        detailsDict = new Dictionary<string, object> { ["message"] = strDetails };
+                    }
+                }
+                // Если details - анонимный объект, конвертируем через JSON
+                else
+                {
+                    try
+                    {
+                        var json = JsonSerializer.Serialize(details);
+                        detailsDict = JsonSerializer.Deserialize<Dictionary<string, object>>(json);
+                    }
+                    catch
+                    {
+                        detailsDict = new Dictionary<string, object> { ["data"] = details.ToString() };
+                    }
+                }
+            }
+
+            var msg = YukiProtocol.CreateExtendedStatusMessage(DeviceId, null, substatus, detailsDict);
             await SendMessageAsync(msg, _cancellationTokenSource.Token, _webSocket);
             Log(Logger.LogLevel.DEBUG, $"Extended status sent: {substatus}");
         }

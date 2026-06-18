@@ -8,6 +8,9 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>disable</ImplicitUsings>
   </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="..\libs\yuki-protocol\csharp\YukiProtocol.cs" Link="YukiProtocol.cs" />
+  </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="System.Text.Json" Version="9.0.0" />
