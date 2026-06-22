@@ -17,6 +17,7 @@ namespace Yuki_PC
 
         private void InitializeComponent()
         {
+            System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(Form1));
             groupBoxServer = new GroupBox();
             labelStatusText = new Label();
             labelStatusValue = new Label();
@@ -403,6 +404,7 @@ namespace Yuki_PC
             Controls.Add(textBoxLogs);
             Controls.Add(buttonOpenLogs);
             FormBorderStyle = FormBorderStyle.FixedSingle;
+            Icon = (System.Drawing.Icon)resources.GetObject("$this.Icon");
             MaximizeBox = false;
             Name = "Form1";
             StartPosition = FormStartPosition.CenterScreen;
