@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Diagnostics;
+using System.IO;
 using System.Runtime.InteropServices;
 using System.Text.Json;
 using System.Threading.Tasks;
@@ -27,13 +28,20 @@ namespace Yuki_PC
                             if (payload.TryGetProperty("url", out var urlProp))
                                 url = urlProp.GetString();
 
+                            // Reject anything but http(s): UseShellExecute otherwise lets a remote string launch local exes, UNC paths, file:// URIs, etc.
+                            if (!Uri.TryCreate(url, UriKind.Absolute, out var uri) ||
+                                (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps))
+                            {
+                                return (false, null, "Invalid or unsupported URL scheme");
+                            }
+
                             Process.Start(new ProcessStartInfo
                             {
-                                FileName = url,
+                                FileName = uri.AbsoluteUri,
                                 UseShellExecute = true
                             });
 
-                            result = new { opened = true, url };
+                            result = new { opened = true, url = uri.AbsoluteUri };
                             break;
                         }
 
@@ -112,7 +120,12 @@ namespace Yuki_PC
                         if (payload.TryGetProperty("path", out var folderProp))
                         {
                             var folder = folderProp.GetString();
-                            Process.Start("explorer.exe", folder);
+                            if (string.IsNullOrEmpty(folder) || !Directory.Exists(folder))
+                                return (false, null, "Path does not exist or is not a directory");
+
+                            var openFolderPsi = new ProcessStartInfo("explorer.exe");
+                            openFolderPsi.ArgumentList.Add(folder);
+                            Process.Start(openFolderPsi);
                             result = new { opened = folder };
                         }
                         else
@@ -127,8 +140,21 @@ namespace Yuki_PC
                             if (payload.TryGetProperty("path", out var expProp))
                                 explorerPath = expProp.GetString();
 
-                            Process.Start("explorer.exe", string.IsNullOrEmpty(explorerPath) ? "" : explorerPath);
-                            result = new { opened = string.IsNullOrEmpty(explorerPath) ? "This PC" : explorerPath };
+                            if (string.IsNullOrEmpty(explorerPath))
+                            {
+                                Process.Start("explorer.exe");
+                                result = new { opened = "This PC" };
+                            }
+                            else
+                            {
+                                if (!Directory.Exists(explorerPath))
+                                    return (false, null, "Path does not exist or is not a directory");
+
+                                var openExplorerPsi = new ProcessStartInfo("explorer.exe");
+                                openExplorerPsi.ArgumentList.Add(explorerPath);
+                                Process.Start(openExplorerPsi);
+                                result = new { opened = explorerPath };
+                            }
                             break;
                         }
 

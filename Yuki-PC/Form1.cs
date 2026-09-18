@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using System.Drawing;
 using System.IO;
 using System.Linq;
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
 using System.Threading.Tasks;
 using System.Windows.Forms;
@@ -372,7 +374,7 @@ namespace Yuki_PC
                 if (!string.IsNullOrEmpty(settings.DeviceId))
                     textBoxDeviceId.Text = settings.DeviceId;
                 if (!string.IsNullOrEmpty(settings.AuthToken))
-                    textBoxAuthToken.Text = settings.AuthToken;
+                    textBoxAuthToken.Text = DecryptToken(settings.AuthToken);
                 if (settings.EnabledCapabilities != null && settings.EnabledCapabilities.Length > 0)
                 {
                     for (int i = 0; i < checkedListBoxCapabilities.Items.Count; i++)
@@ -405,7 +407,7 @@ namespace Yuki_PC
                 {
                     ServerAddress = textBoxAddress.Text.Trim(),
                     DeviceId = textBoxDeviceId.Text.Trim(),
-                    AuthToken = textBoxAuthToken.Text.Trim(),
+                    AuthToken = EncryptToken(textBoxAuthToken.Text.Trim()),
                     EnabledCapabilities = checkedListBoxCapabilities.CheckedItems.Cast<string>().ToArray(),
                     Substatus = comboSubstatus?.SelectedItem?.ToString(),
                     IsDarkTheme = _isDarkTheme,
@@ -417,6 +419,44 @@ namespace Yuki_PC
             catch (Exception ex)
             {
                 Logger.Error($"Failed to save settings: {ex.Message}");
+            }
+        }
+
+        // DPAPI-encrypts the token for on-disk storage; in-memory/UI copies stay plaintext.
+        private static string EncryptToken(string plainToken)
+        {
+            if (string.IsNullOrEmpty(plainToken))
+                return string.Empty;
+
+            try
+            {
+                byte[] plainBytes = Encoding.UTF8.GetBytes(plainToken);
+                byte[] encryptedBytes = ProtectedData.Protect(plainBytes, null, DataProtectionScope.CurrentUser);
+                return Convert.ToBase64String(encryptedBytes);
+            }
+            catch (Exception ex)
+            {
+                Logger.Error($"Failed to encrypt auth token: {ex.Message}");
+                return string.Empty;
+            }
+        }
+
+        private static string DecryptToken(string encryptedBase64)
+        {
+            if (string.IsNullOrEmpty(encryptedBase64))
+                return string.Empty;
+
+            try
+            {
+                byte[] encryptedBytes = Convert.FromBase64String(encryptedBase64);
+                byte[] plainBytes = ProtectedData.Unprotect(encryptedBytes, null, DataProtectionScope.CurrentUser);
+                return Encoding.UTF8.GetString(plainBytes);
+            }
+            catch
+            {
+                // DPAPI keys are per-user/per-machine, and older settings.json files predate encryption entirely;
+                // either way the token can't be recovered here, so require the user to re-enter it.
+                return string.Empty;
             }
         }
 
